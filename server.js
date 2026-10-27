@@ -87,6 +87,25 @@ async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id BIGINT REFERENCES messages(id) ON DELETE SET NULL;
     ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded_from VARCHAR(20);
+    CREATE TABLE IF NOT EXISTS calls (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      caller VARCHAR(20) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      callee VARCHAR(20) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('audio','video')),
+      status TEXT NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing','accepted','rejected','ended','missed')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS calls_callee_status_idx ON calls(callee,status,created_at DESC);
+    CREATE TABLE IF NOT EXISTS call_signals (
+      id BIGSERIAL PRIMARY KEY,
+      call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+      sender VARCHAR(20) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS call_signals_call_id_idx ON call_signals(call_id,id);
+
   `);
   const botHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
   await pool.query("INSERT INTO users(username,password_hash) VALUES('pal_laich',$1) ON CONFLICT(username) DO NOTHING", [botHash]);
@@ -266,6 +285,75 @@ app.post('/api/messages', auth, async (req, res) => {
     res.status(201).json({ message: r.rows[0] });
   } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось отправить сообщение' }); }
 });
+/* ===== звонки WebRTC: авторизация и обмен сигналами через PostgreSQL ===== */
+async function getCallForUser(id, username) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return null;
+  const r = await pool.query(
+    'SELECT id,caller,callee,kind,status,created_at,updated_at FROM calls WHERE id=$1 AND (caller=$2 OR callee=$2)',
+    [id, username]
+  );
+  return r.rows[0] || null;
+}
+app.post('/api/calls', auth, async (req, res) => {
+  const callee=String(req.body?.peer||'').trim().toLowerCase();
+  const kind=String(req.body?.kind||'audio');
+  if(!/^[a-z0-9_]{3,20}$/.test(callee)||callee===req.username||callee==='pal_laich')
+    return res.status(400).json({error:'Нельзя позвонить этому пользователю'});
+  if(!['audio','video'].includes(kind)) return res.status(400).json({error:'Неверный тип звонка'});
+  try {
+    const u=await pool.query('SELECT 1 FROM users WHERE username=$1',[callee]);
+    if(!u.rowCount)return res.status(404).json({error:'Пользователь не найден'});
+    await pool.query("UPDATE calls SET status='missed',updated_at=NOW() WHERE callee=$1 AND status='ringing' AND created_at<NOW()-INTERVAL '90 seconds'",[req.username]);
+    const active=await pool.query("SELECT id FROM calls WHERE status IN ('ringing','accepted') AND (caller=$1 OR callee=$1) LIMIT 1",[req.username]);
+    if(active.rowCount)return res.status(409).json({error:'Сначала завершите текущий звонок'});
+    const r=await pool.query("INSERT INTO calls(caller,callee,kind) VALUES($1,$2,$3) RETURNING id,caller,callee,kind,status,created_at",[req.username,callee,kind]);
+    res.status(201).json({call:r.rows[0]});
+  } catch(e){console.error('Create call:',e.message);res.status(500).json({error:'Не удалось начать звонок'});}
+});
+app.get('/api/calls', auth, async (req,res) => {
+  const after=Math.max(0,Number(req.query.after)||0);
+  try {
+    const c=await pool.query("SELECT id,caller,callee,kind,status,created_at,updated_at FROM calls WHERE (caller=$1 OR callee=$1) AND status IN ('ringing','accepted') ORDER BY created_at DESC LIMIT 5",[req.username]);
+    const ids=c.rows.map(x=>x.id);
+    let signals=[];
+    if(ids.length){
+      const s=await pool.query('SELECT id,call_id,sender,payload,created_at FROM call_signals WHERE call_id=ANY($1::uuid[]) AND id>$2 ORDER BY id ASC LIMIT 100',[ids,after]);
+      signals=s.rows;
+    }
+    res.json({calls:c.rows,signals});
+  }catch(e){console.error('Poll calls:',e.message);res.status(500).json({error:'Не удалось проверить звонки'});}
+});
+app.post('/api/calls/:id/answer', auth, async (req,res) => {
+  const action=String(req.body?.action||'');
+  if(!['accept','reject','end'].includes(action))return res.status(400).json({error:'Неверное действие'});
+  try{
+    const call=await getCallForUser(req.params.id,req.username);
+    if(!call)return res.status(404).json({error:'Звонок не найден'});
+    if(action==='accept'){
+      if(call.callee!==req.username||call.status!=='ringing')return res.status(409).json({error:'Этот звонок уже нельзя принять'});
+      await pool.query("UPDATE calls SET status='accepted',updated_at=NOW() WHERE id=$1",[call.id]);
+    }else{
+      if(call.status==='ended'||call.status==='rejected'||call.status==='missed')return res.json({ok:true});
+      const status=action==='reject'?'rejected':'ended';
+      await pool.query('UPDATE calls SET status=$2,updated_at=NOW() WHERE id=$1',[call.id,status]);
+    }
+    const r=await pool.query('SELECT id,caller,callee,kind,status,created_at,updated_at FROM calls WHERE id=$1',[call.id]);
+    res.json({call:r.rows[0]});
+  }catch(e){console.error('Update call:',e.message);res.status(500).json({error:'Не удалось изменить звонок'});}
+});
+app.post('/api/calls/:id/signal', auth, async (req,res) => {
+  const payload=req.body?.payload;
+  if(!payload||typeof payload!=='object'||Array.isArray(payload)||JSON.stringify(payload).length>20000)
+    return res.status(400).json({error:'Некорректный сигнал'});
+  try{
+    const call=await getCallForUser(req.params.id,req.username);
+    if(!call)return res.status(404).json({error:'Звонок не найден'});
+    if(!['ringing','accepted'].includes(call.status))return res.status(409).json({error:'Звонок уже завершён'});
+    const r=await pool.query('INSERT INTO call_signals(call_id,sender,payload) VALUES($1,$2,$3::jsonb) RETURNING id',[call.id,req.username,JSON.stringify(payload)]);
+    res.status(201).json({ok:true,id:Number(r.rows[0].id)});
+  }catch(e){console.error('Call signal:',e.message);res.status(500).json({error:'Не удалось передать сигнал'});}
+});
+
 app.get('/api/group', auth, async (_req, res) => {
   try {
     const r = await pool.query("SELECT username FROM users WHERE username <> 'pal_laich' ORDER BY username");
