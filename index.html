@@ -151,7 +151,7 @@ h1,h2,h3,p{margin:0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 .fm-box{padding:16px;border:1px solid #ffd66b44;border-radius:18px;background:linear-gradient(145deg,#382b10aa,#101735)}.slot-reels{display:flex;justify-content:center;gap:10px;margin:18px 0}.slot-reels span{width:72px;height:82px;display:grid;place-items:center;font-size:38px;border-radius:14px;background:#070b1d;border:1px solid #ffd66b66;box-shadow:inset 0 0 18px #ffd66b18}.fm-row{display:flex;gap:8px;margin:10px 0}.fm-row input{min-width:0;width:100%;padding:11px 12px;border-radius:12px;background:#ffffff12;border:1px solid var(--line)}.fm-result{text-align:center;min-height:24px;margin:10px 0;color:#ffe18a;font-weight:800}.admin-stars{margin-top:16px;padding:14px;border-radius:16px;background:#ffffff08;border:1px solid var(--line)}
-<style>.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#36d875;margin-left:6px}.online-dot.off{background:#778092}.msg-tools{display:flex;gap:5px;margin-top:5px}.msg-tools button{font-size:11px;padding:3px 6px;border-radius:6px;background:#0002;color:inherit}.reply-preview{font-size:12px;padding:4px 7px;border-left:3px solid #ffd66b;background:#0002;margin-bottom:5px}</style>
+<style>.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#36d875;margin-left:6px}.online-dot.off{background:#778092}.msg-tools{display:none;gap:5px;margin-top:7px;flex-wrap:wrap}.bub.msg-menu-open .msg-tools{display:flex}.msg-tools button{font-size:12px;padding:6px 9px;border-radius:8px;background:#0002;color:inherit;touch-action:manipulation}.bub{user-select:none;-webkit-user-select:none}.reply-preview{font-size:12px;padding:4px 7px;border-left:3px solid #ffd66b;background:#0002;margin-bottom:5px}</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe68a"/><stop offset="1" stop-color="#d9962b"/></linearGradient></defs>
@@ -366,6 +366,19 @@ async function paintChat(){
   ta.onpaste=e=>{const f=[...(e.clipboardData?.files||[])].filter(x=>x.type.startsWith('image/'));if(f.length){e.preventDefault();f.forEach(sendImage)}};
   $('#cf').onsubmit=e=>{e.preventDefault();send()};
   $('#sd').onpointerdown=e=>e.preventDefault();
+  let msgHoldTimer=null,msgHoldTarget=null,msgHoldTriggered=false;
+  const clearMsgHold=()=>{if(msgHoldTimer){clearTimeout(msgHoldTimer);msgHoldTimer=null}msgHoldTarget=null};
+  $('#ms').addEventListener('pointerdown',e=>{
+    if(e.target.closest('[data-msgact]'))return;
+    const bub=e.target.closest('.bub');if(!bub)return;
+    clearMsgHold();msgHoldTarget=bub;msgHoldTriggered=false;
+    msgHoldTimer=setTimeout(()=>{if(!msgHoldTarget)return;document.querySelectorAll('.bub.msg-menu-open').forEach(x=>x.classList.remove('msg-menu-open'));msgHoldTarget.classList.add('msg-menu-open');msgHoldTriggered=true;msgHoldTimer=null},480);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#ms').addEventListener(ev,()=>{if(msgHoldTimer)clearTimeout(msgHoldTimer);msgHoldTimer=null;setTimeout(()=>{msgHoldTarget=null},0)}));
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.bub.msg-menu-open')&&e.target.closest('[data-msgact]'))return;
+    if(!e.target.closest('.bub.msg-menu-open'))document.querySelectorAll('.bub.msg-menu-open').forEach(x=>x.classList.remove('msg-menu-open'));
+  });
   $('#ms').onclick=async e=>{const img=e.target.closest('img.ph.ok');if(img){openLb(img.src);return}const a=e.target.closest('[data-msgact]');if(!a)return;const m=(S.cache[S.cur]||[]).find(x=>String(x.id)===a.dataset.id);if(!m)return;if(a.dataset.msgact==='copy'){try{await navigator.clipboard.writeText(m.x);toast('Скопировано')}catch{toast('Не удалось скопировать')}return}if(a.dataset.msgact==='reply'){S.reply=m;$('#replybar')?.remove();const bar=document.createElement('div');bar.id='replybar';bar.className='reply-preview';bar.textContent='Ответ: '+m.f+' — '+m.x.slice(0,100);$('#cf').before(bar);$('#msg').focus();return}if(a.dataset.msgact==='forward'){const target=prompt('Ник получателя');if(!target)return;try{await api('/api/messages',{method:'POST',body:JSON.stringify({peer:target.trim().replace(/^@/,'').toLowerCase(),body:m.x,forwardedFrom:m.f})});toast('Переслано')}catch(err){toast(err.message)}}};
   drawMsgs(true);paintInfo();
   if(!S.cache[n]){
