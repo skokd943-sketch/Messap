@@ -303,6 +303,45 @@ app.post('/api/gifts/buy-for', auth, async (req,res) => {
   }catch(e){await c.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Покупка подарка не удалась'});}
   finally{c.release();}
 });
+
+// ФабрMoney: результат и списание ставки рассчитываются на сервере.
+app.post('/api/fabrlmoney/spin', auth, async (req,res) => {
+  const bet=Number(req.body?.bet);
+  if(!Number.isSafeInteger(bet)||bet<10||bet>10000)return res.status(400).json({error:'Ставка должна быть от 10 до 10 000 золотых яиц'});
+  const c=await pool.connect();
+  try{
+    await c.query('BEGIN');
+    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[req.username]);
+    const p=await c.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
+    const balance=Number(p.rows[0].balance);
+    if(balance<bet){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц для ставки'});}
+    const symbols=['🥚','💎','👑','🍀','🔥','⭐'];
+    const reels=Array.from({length:3},()=>symbols[crypto.randomInt(symbols.length)]);
+    const same=reels[0]===reels[1]&&reels[1]===reels[2],pair=!same&&(reels[0]===reels[1]||reels[1]===reels[2]||reels[0]===reels[2]);
+    const payout=same?bet*5:pair?Math.floor(bet*1.5):0,next=balance-bet+payout;
+    await c.query('UPDATE profiles SET balance=$2,updated_at=NOW() WHERE username=$1',[req.username,next]);
+    await c.query('COMMIT');
+    res.json({symbols:reels,balance:next,payout,message:same?'ДЖЕКПОТ! Выигрыш '+payout+' 🥚':pair?'Две совпали! Выплата '+payout+' 🥚':'Не повезло — ставка потеряна ('+bet+' 🥚)'});
+  }catch(e){await c.query('ROLLBACK');console.error('FabrlMoney spin:',e.message);res.status(500).json({error:'Не удалось прокрутить слоты'});}
+  finally{c.release();}
+});
+// Выдача золотых яиц доступна только аккаунту Alex.
+app.post('/api/stars/grant', auth, async (req,res) => {
+  if(req.username.toLowerCase()!=='alex')return res.status(403).json({error:'Выдавать золотые яйца может только Alex'});
+  const target=String(req.body?.target||'').trim().replace(/^@/,'').toLowerCase(),amount=Number(req.body?.amount);
+  if(!/^[a-z0-9_]{3,20}$/.test(target)||!Number.isSafeInteger(amount)||amount<1||amount>1000000)return res.status(400).json({error:'Укажи ник и сумму от 1 до 1 000 000'});
+  const c=await pool.connect();
+  try{
+    await c.query('BEGIN');
+    const exists=await c.query('SELECT 1 FROM users WHERE username=$1',[target]);
+    if(!exists.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Пользователь не найден'});}
+    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[target]);
+    const r=await c.query('UPDATE profiles SET balance=balance+$2,updated_at=NOW() WHERE username=$1 RETURNING balance',[target,amount]);
+    await c.query('COMMIT');res.json({ok:true,target,amount,balance:Number(r.rows[0].balance)});
+  }catch(e){await c.query('ROLLBACK');console.error('Stars grant:',e.message);res.status(500).json({error:'Не удалось выдать яйца'});}
+  finally{c.release();}
+});
+
 app.get('/api/settings', auth, async (_req,res) => {
   try{const r=await pool.query("SELECT key,value FROM app_settings WHERE key IN ('bot_avatar','chat_background')");const out={};for(const x of r.rows)out[x.key]=x.value;res.json(out);}
   catch(e){console.error(e.message);res.status(500).json({error:'Не удалось загрузить настройки'});}
