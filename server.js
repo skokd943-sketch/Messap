@@ -19,7 +19,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '64kb' }));
+app.use(express.json({ limit: '2mb' }));
 
 function sign(username) {
   const payload = Buffer.from(JSON.stringify({ username, exp: Date.now() + 30 * 86400000 })).toString('base64url');
@@ -61,6 +61,24 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS messages_room_id_idx ON messages(room_key, id);
+    CREATE TABLE IF NOT EXISTS profiles (
+      username VARCHAR(20) PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+      balance BIGINT NOT NULL DEFAULT 10000 CHECK (balance >= 0),
+      avatar_data TEXT,
+      equipped_gifts JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS gift_inventory (
+      id BIGSERIAL PRIMARY KEY,
+      username VARCHAR(20) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      gift_id INTEGER NOT NULL,
+      level INTEGER NOT NULL DEFAULT 1,
+      pattern TEXT NOT NULL DEFAULT 'Звёзды',
+      color TEXT NOT NULL DEFAULT 'Золото',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS gift_inventory_user_idx ON gift_inventory(username, id);
+
   `);
 }
 app.get('/api/health', async (_req, res) => {
@@ -75,6 +93,7 @@ app.post('/api/register', async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 12);
     await pool.query('INSERT INTO users(username,password_hash) VALUES($1,$2)', [username, hash]);
+    await pool.query('INSERT INTO profiles(username,balance) VALUES($1,10000) ON CONFLICT(username) DO NOTHING', [username]);
     res.status(201).json({ token: sign(username), username });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: 'Такой ник уже занят' });
@@ -90,9 +109,93 @@ app.post('/api/login', async (req, res) => {
     res.json({ token: sign(username), username });
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Ошибка входа' }); }
 });
-app.get('/api/me', auth, (req, res) => res.json({ username: req.username }));
+
+app.get('/api/me', auth, async (req, res) => {
+  try {
+    await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING', [req.username]);
+    const r = await pool.query('SELECT username,balance,avatar_data,equipped_gifts FROM profiles WHERE username=$1', [req.username]);
+    res.json(r.rows[0]);
+  } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить профиль' }); }
+});
+app.put('/api/profile', auth, async (req, res) => {
+  const avatar = req.body?.avatar;
+  if (avatar !== null && avatar !== undefined && (typeof avatar !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(avatar) || avatar.length > 1400000)) {
+    return res.status(400).json({ error: 'Изображение должно быть PNG, JPG, WEBP или GIF размером до 1 МБ' });
+  }
+  try {
+    await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING', [req.username]);
+    await pool.query('UPDATE profiles SET avatar_data=$2,updated_at=NOW() WHERE username=$1', [req.username, avatar ?? null]);
+    res.json({ ok: true });
+  } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось сохранить аватар' }); }
+});
+const GIFT_CATALOG = [
+ ['Золотое яйцо',500,'🥚'],['Лунный кролик',700,'🐇'],['Кристальная роза',850,'🌹'],['Золотая корона',1000,'👑'],['Мини-дракон',1200,'🐉'],
+ ['Сияющий куб',1400,'💎'],['Космический кот',1600,'🐈'],['Солнечный цветок',1800,'🌻'],['Сапфировое сердце',2000,'💙'],['Золотой ключ',2200,'🗝️'],
+ ['Лунная маска',2400,'🎭'],['Метеорит',2600,'☄️'],['Королевский щит',2800,'🛡️'],['Магический гриб',3000,'🍄'],['Жемчужина',3200,'🦪'],
+ ['Звёздный компас',3500,'🧭'],['Огненная птица',3800,'🦜'],['Космическая планета',4100,'🪐'],['Алмазная бабочка',4400,'🦋'],['Серебряный волк',4700,'🐺'],
+ ['Золотой феникс',5000,'🔥'],['Ледяной кристалл',5400,'❄️'],['Королевский кубок',5800,'🏆'],['Рубиновый череп',6200,'💀'],['Сокровищница',6600,'💰'],
+ ['Звёздный корабль',7000,'🚀'],['Драконье сердце',7500,'❤️‍🔥'],['Корона императора',8000,'👑'],['Галактический портал',9000,'🌀'],['Яйцо правителя',10000,'🌟']
+].map((g,i)=>({id:i+1,name:g[0],price:g[1],emoji:g[2]}));
+const GIFT_PATTERNS = ['Звёзды','Волны','Мрамор','Руны','Кристаллы','Геометрия','Пламя','Градиент'];
+const GIFT_COLORS = ['Золото','Рубин','Сапфир','Изумруд','Аметист','Лёд','Розовый','Обсидиан'];
+app.get('/api/gifts', auth, async (req,res) => {
+  try {
+    await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[req.username]);
+    const [p,inv] = await Promise.all([
+      pool.query('SELECT balance,avatar_data,equipped_gifts FROM profiles WHERE username=$1',[req.username]),
+      pool.query('SELECT id,gift_id,level,pattern,color FROM gift_inventory WHERE username=$1 ORDER BY id DESC',[req.username])
+    ]);
+    res.json({balance:Number(p.rows[0].balance),avatar:p.rows[0].avatar_data,equipped:p.rows[0].equipped_gifts||[],catalog:GIFT_CATALOG,inventory:inv.rows});
+  } catch(e){ console.error(e.message); res.status(500).json({error:'Не удалось загрузить подарки'}); }
+});
+app.post('/api/gifts/buy', auth, async (req,res) => {
+  const gift=GIFT_CATALOG.find(g=>g.id===Number(req.body?.giftId));
+  if(!gift) return res.status(400).json({error:'Такого подарка нет'});
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[req.username]);
+    const p=await client.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
+    if(Number(p.rows[0].balance)<gift.price){await client.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц'});}
+    await client.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,gift.price]);
+    const g=await client.query('INSERT INTO gift_inventory(username,gift_id) VALUES($1,$2) RETURNING id,gift_id,level,pattern,color',[req.username,gift.id]);
+    await client.query('COMMIT');
+    res.status(201).json({gift:g.rows[0],balance:Number(p.rows[0].balance)-gift.price});
+  } catch(e){await client.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Покупка не удалась'});}
+  finally{client.release();}
+});
+app.post('/api/gifts/upgrade', auth, async (req,res) => {
+  const id=Number(req.body?.inventoryId),client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const g=await client.query('SELECT * FROM gift_inventory WHERE id=$1 AND username=$2 FOR UPDATE',[id,req.username]);
+    if(!g.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Подарок не найден'});}
+    const old=g.rows[0],cost=Number(old.level)*750;
+    const p=await client.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
+    if(Number(p.rows[0].balance)<cost){await client.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц для улучшения ('+cost+')'});}
+    const pattern=GIFT_PATTERNS[crypto.randomInt(GIFT_PATTERNS.length)],color=GIFT_COLORS[crypto.randomInt(GIFT_COLORS.length)];
+    const updated=await client.query('UPDATE gift_inventory SET level=level+1,pattern=$3,color=$4 WHERE id=$1 AND username=$2 RETURNING id,gift_id,level,pattern,color',[id,req.username,pattern,color]);
+    await client.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,cost]);
+    await client.query('COMMIT');
+    res.json({gift:updated.rows[0],balance:Number(p.rows[0].balance)-cost,cost});
+  }catch(e){await client.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Улучшение не удалось'});}
+  finally{client.release();}
+});
+app.post('/api/gifts/equip', auth, async (req,res) => {
+  const id=Number(req.body?.inventoryId);
+  try {
+    const g=await pool.query('SELECT id FROM gift_inventory WHERE id=$1 AND username=$2',[id,req.username]);
+    if(!g.rowCount)return res.status(404).json({error:'Подарок не найден'});
+    const p=await pool.query('SELECT equipped_gifts FROM profiles WHERE username=$1',[req.username]);
+    let equipped=p.rows[0]?.equipped_gifts||[];
+    equipped=equipped.includes(id)?equipped.filter(x=>x!==id):[...equipped,id].slice(-3);
+    await pool.query('UPDATE profiles SET equipped_gifts=$2::jsonb,updated_at=NOW() WHERE username=$1',[req.username,JSON.stringify(equipped)]);
+    res.json({equipped});
+  }catch(e){console.error(e.message);res.status(500).json({error:'Не удалось изменить витрину профиля'});}
+});
+
 app.get('/api/users', auth, async (_req, res) => {
-  try { const r = await pool.query('SELECT username, created_at FROM users ORDER BY username'); res.json({ users: r.rows }); }
+  try { const r = await pool.query('SELECT u.username, u.created_at, p.avatar_data, p.equipped_gifts FROM users u LEFT JOIN profiles p ON p.username=u.username ORDER BY u.username'); res.json({ users: r.rows }); }
   catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить пользователей' }); }
 });
 app.get('/api/messages', auth, async (req, res) => {
