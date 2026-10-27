@@ -238,6 +238,7 @@ app.get('/api/group', auth, async (_req, res) => {
     res.json({ title: 'Правители мира', members: r.rows.map(x => x.username) });
   } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить группу' }); }
 });
+require('./images')(app, pool, auth);
 app.get('/', (_req, res) => res.send('ФабрLink API is running. Open /api/health to check the database connection.'));
 initDb().then(() => {
   app.listen(PORT, '0.0.0.0', () => console.log('ФабрLink API listening on port ' + PORT));
