@@ -83,6 +83,10 @@ async function initDb() {
       value TEXT NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    -- Safe migrations for existing databases: add new fields without deleting data.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id BIGINT REFERENCES messages(id) ON DELETE SET NULL;
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded_from VARCHAR(20);
   `);
   const botHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
   await pool.query("INSERT INTO users(username,password_hash) VALUES('pal_laich',$1) ON CONFLICT(username) DO NOTHING", [botHash]);
