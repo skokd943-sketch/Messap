@@ -177,7 +177,7 @@ h1,h2,h3,p{margin:0}
 <main id="app"></main><div id="toast"></div><div id="lb" hidden></div>
 <script>
 const API='https://messap.onrender.com',GROUP='__rulers_world__',GT='Правители мира',$=s=>document.querySelector(s);
-const S={token:localStorage.getItem('fl_token')||'',me:localStorage.getItem('fl_session')||'',tab:'chats',cur:null,mode:'login',q:'',users:[],av:{},raw:{},prof:null,gifts:null,gt:'shop',cache:{},imgs:{},info:innerWidth>=1200};
+const S={token:localStorage.getItem('fl_token')||'',me:localStorage.getItem('fl_session')||'',tab:'chats',cur:null,mode:'login',q:'',users:[],av:{},raw:{},prof:null,gifts:null,gt:'shop',profileTarget:null,settings:{},cache:{},imgs:{},info:innerWidth>=1200};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n).toLocaleString('ru');
 const hm=t=>new Date(Number(t)).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
@@ -248,7 +248,7 @@ const gsv=(id,p)=>'<svg class="gsv" viewBox="0 0 64 64" style="--a:'+p[0]+';--b:
 function blobUrl(d){try{const[h,b]=d.split(','),m=h.match(/:(.*?);/)[1],bin=atob(b),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return URL.createObjectURL(new Blob([a],{type:m}))}catch{return''}}
 function setAv(u,d){if(!d){delete S.av[u];delete S.raw[u];return}if(S.raw[u]===d)return;if(S.av[u])URL.revokeObjectURL(S.av[u]);S.raw[u]=d;S.av[u]=blobUrl(d)}
 const hue=n=>{let h=0;for(const c of String(n))h=(h*31+c.charCodeAt(0))%360;return h};
-function av(n,cls=''){const u=S.av[n];return'<div class="av '+cls+'" style="'+(u?"background-image:url('"+u+"')":n===GROUP?'background:linear-gradient(135deg,#2f8cff,#7a4dff)':'background:linear-gradient(135deg,hsl('+hue(n)+' 65% 52%),hsl('+(hue(n)+40)+' 65% 38%))')+'">'+(u?'':n===GROUP?ic('globe'):esc(String(n||'?').slice(0,2).toUpperCase()))+'</div>'}
+function av(n,cls=''){const d=n===GROUP&&S.settings.bot_avatar?blobUrl(S.settings.bot_avatar):S.av[n],u=S.av[n];const src=n===GROUP&&S.settings.bot_avatar?d:u;return'<div class="av '+cls+'" style="'+(src?"background-image:url('"+src+"')":n===GROUP?'background:linear-gradient(135deg,#2f8cff,#7a4dff)':'background:linear-gradient(135deg,hsl('+hue(n)+' 65% 52%),hsl('+(hue(n)+40)+' 65% 38%))')+'">'+(src?'':n===GROUP?ic('globe'):esc(String(n||'?').slice(0,2).toUpperCase()))+'</div>'}
 
 /* ===== фото в чате ===== */
 const pend={};
@@ -277,6 +277,8 @@ async function loadMe(){const d=await api('/api/me');S.me=d.username;S.prof=d;se
 async function loadUsers(){const d=await api('/api/users');S.users=d.users.map(u=>{setAv(u.username,u.avatar_data);return u.username})}
 async function thread(n){const d=await api('/api/messages?peer='+encodeURIComponent(n));return S.cache[n]=(d.messages||[]).concat((S.cache[n]||[]).filter(m=>m.p))}
 async function loadGifts(){S.gifts=await api('/api/gifts');setAv(S.me,S.gifts.avatar);return S.gifts}
+async function loadSettings(){try{S.settings=await api('/api/settings');applyGlobalSettings()}catch(e){}}
+function applyGlobalSettings(){const bg=S.settings.chat_background;if(bg){const css='linear-gradient(#07102dcc,#07102dcc),url("'+bg.replace(/"/g,'%22')+'")';document.body.style.backgroundImage=css;document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center';document.querySelectorAll('.main,.msgs').forEach(el=>{el.style.backgroundImage=css;el.style.backgroundSize='cover';el.style.backgroundPosition='center'})}}
 
 /* ===== вход ===== */
 function auth(msg){
@@ -307,9 +309,9 @@ function mount(){
   $('#app').innerHTML='<div class="shell t-chats" id="sh"><nav class="nav"><div class="lg">'+ic('logo')+'</div>'+NAV.map(n=>'<button data-t="'+n[0]+'">'+ic(n[1])+n[2]+'</button>').join('')+'<span class="sp"></span><button class="lo" id="lo">'+ic('logout')+'Выйти</button></nav><section class="side"><div class="sh"><h1>Сообщения <span id="cnt"></span></h1><button id="cp" aria-label="Поиск">'+ic('edit')+'</button></div><div class="sr">'+ic('search')+'<input id="q" placeholder="Поиск по нику" autocomplete="off"></div><div class="list" id="list"></div></section><section class="main" id="main"></section><aside class="info" id="info"></aside></div>';
   document.querySelectorAll('.nav button[data-t]').forEach(b=>b.onclick=()=>{
     const t=b.dataset.t;
-    if(t==='group')return openChat(GROUP);
+    if(t==='group'){S.profileTarget=null;return openChat(GROUP)}
     if(t==='saved')return openChat(S.me);
-    S.tab=t;if(t==='chats'&&(innerWidth<=760||[GROUP,S.me].includes(S.cur)))S.cur=null;
+    S.tab=t;if(t!=='profile')S.profileTarget=null;if(t==='chats'&&(innerWidth<=760||[GROUP,S.me].includes(S.cur)))S.cur=null;
     setShell();paintSide();paint()
   });
   $('#lo').onclick=()=>logout();
@@ -329,10 +331,10 @@ function setShell(){
 async function boot(){
   if(!S.token||!S.me)return auth();
   mount();
-  try{await Promise.all([loadMe(),loadUsers()])}catch(e){if(!S.token)return;toast(e.message)}
+  try{await Promise.all([loadMe(),loadUsers(),loadSettings()])}catch(e){if(!S.token)return;toast(e.message)}
   if($('#sh')){paintSide();paint()}
 }
-function openChat(n){S.tab='chats';S.cur=n;setShell();paintSide();paintChat()}
+function openChat(n){S.tab='chats';S.profileTarget=null;S.cur=n;setShell();paintSide();paintChat()}
 function paint(){if(S.tab==='gifts')paintGifts();else if(S.tab==='profile')paintProfile();else paintChat()}
 
 /* ===== список чатов ===== */
@@ -350,8 +352,9 @@ async function paintChat(){
   const m=$('#main');
   if(!S.cur){m.innerHTML='<div class="em">Выберите чат, чтобы начать общение</div>';return}
   const n=S.cur,g=n===GROUP,t=g?GT:n===S.me?'Избранное':n;
-  m.innerHTML='<header class="ch"><button class="ib2 back" id="bk" aria-label="Назад">'+ic('back')+'</button>'+av(n)+'<div class="t"><b>'+esc(t)+vf(n)+'</b><small>'+(g?S.users.length+' участников':n===S.me?'Личные заметки':'@'+esc(n))+'</small></div><button class="ib2" id="inf" aria-label="Информация">'+ic('info')+'</button></header><div class="msgs" id="ms"></div><form class="cm" id="cf"><button type="button" class="ib2" id="at" aria-label="Отправить фото">'+ic('image')+'</button><input type="file" id="fi" accept="image/*" multiple hidden><textarea id="msg" rows="1" placeholder="Сообщение" enterkeyhint="send"></textarea><button class="snd" id="sd" aria-label="Отправить">'+ic('send')+'</button></form>';
+  m.innerHTML='<header class="ch"><button class="ib2 back" id="bk" aria-label="Назад">'+ic('back')+'</button>'+av(n)+'<div class="t" data-profile="'+(g||n===S.me?'':esc(n))+'" style="'+(g||n===S.me?'':'cursor:pointer')+'"><b>'+esc(t)+vf(n)+'</b><small>'+(g?S.users.length+' участников':n===S.me?'Личные заметки':'@'+esc(n)+' · открыть профиль')+'</small></div><button class="ib2" id="inf" aria-label="Информация">'+ic('info')+'</button></header><div class="msgs" id="ms"></div><form class="cm" id="cf"><button type="button" class="ib2" id="at" aria-label="Отправить фото">'+ic('image')+'</button><input type="file" id="fi" accept="image/*" multiple hidden><textarea id="msg" rows="1" placeholder="Сообщение" enterkeyhint="send"></textarea><button class="snd" id="sd" aria-label="Отправить">'+ic('send')+'</button></form>';
   $('#bk').onclick=()=>{S.cur=null;setShell();paintSide();paintChat()};
+  const profBtn=m.querySelector('[data-profile]');if(profBtn?.dataset.profile)profBtn.onclick=()=>{S.profileTarget=profBtn.dataset.profile;S.tab='profile';setShell();paint();};
   $('#inf').onclick=()=>{S.info=!S.info;setShell()};
   $('#at').onclick=()=>$('#fi').click();
   $('#fi').onchange=e=>{[...e.target.files].forEach(sendImage);e.target.value=''};
@@ -429,6 +432,8 @@ function drawGifts(){
 }
 async function onMain(e){
   const b=e.target.closest('button');if(!b||b.disabled)return;const D=b.dataset;
+  if(D.sendgift){b.disabled=true;try{await api('/api/gifts/send-own',{method:'POST',body:JSON.stringify({target:S.profileTarget,inventoryId:Number(D.sendgift)})});S.gifts.inventory=S.gifts.inventory.filter(x=>String(x.id)!==String(D.sendgift));S.gifts.equipped=S.gifts.equipped.filter(x=>String(x)!==String(D.sendgift));toast('Подарок отправлен');paintProfile()}catch(x){toast(x.message);b.disabled=false}return}
+  if(D.buyfor){b.disabled=true;try{const r=await api('/api/gifts/buy-for',{method:'POST',body:JSON.stringify({target:S.profileTarget,giftId:Number(D.buyfor)})});S.gifts.balance=r.balance;toast('Подарок куплен и отправлен');paintProfile()}catch(x){toast(x.message);b.disabled=false}return}
   if(D.g){S.gt=D.g;return drawGifts()}
   if(b.id==='logout')return logout();
   if(!(D.buy||D.up||D.eq))return;
@@ -453,10 +458,29 @@ async function paintProfile(){
   const m=$('#main');
   if(!S.gifts){try{await loadGifts()}catch{}}
   if(S.tab!=='profile')return;
+  const target=S.profileTarget;
+  if(target&&target!==S.me){
+    let p;try{p=await api('/api/profile/'+encodeURIComponent(target))}catch(e){m.innerHTML='<div class="em">'+esc(e.message)+'</div>';return}
+    if(S.tab!=='profile'||S.profileTarget!==target)return;
+    const mine=S.gifts?.inventory||[],cat=p.catalog||[],eq=p.equipped||[];
+    const sh=(p.inventory||[]).filter(i=>eq.includes(Number(i.id))).map(i=>{const g=cat.find(x=>x.id===i.gift_id);return '<span class="gi sm" title="'+esc(g?.name||'Подарок')+'">'+gsv(g?.id||1,PAL[i.color]||PAL['Золото'])+'</span>'}).join('');
+    const own=mine.map(i=>{const g=S.gifts.catalog.find(x=>x.id===i.gift_id);return '<div class="gc"><span class="gi">'+gsv(g?.id||1,PAL[i.color]||PAL['Золото'])+'</span><b>'+esc(g?.name||'Подарок')+'</b><small>Ур. '+i.level+'</small><button class="bt bl" data-sendgift="'+i.id+'">Подарить свой</button></div>'}).join('');
+    const shop=cat.map(g=>'<div class="gc"><span class="gi">'+gsv(g.id,shopPal(g.price))+'</span><b>'+esc(g.name)+'</b><span class="pr">'+ic('egg')+fmt(g.price)+'</span><button class="bt go" data-buyfor="'+g.id+'" '+(Number(S.gifts.balance)<g.price?'disabled':'')+'>Купить ему/ей</button></div>').join('');
+    m.innerHTML='<header class="ch"><button class="ib2 back" id="prback">'+ic('back')+'</button><div class="t"><b>Профиль пользователя</b><small>'+esc(target)+'</small></div></header><div class="pg" style="text-align:center">'+(p.avatar?'<img class="av big" style="object-fit:cover" src="'+p.avatar+'" alt="">':av(target,'big'))+'<h2 style="margin:12px 0 0">'+esc(target)+vf(target)+'</h2><p class="mut" style="margin-top:6px">Подарки на витрине</p><div>'+ (sh||'<span class="mut">Пока нет подарков на витрине</span>')+'</div><div class="wal">'+ic('egg')+'<div>'+fmt(S.gifts.balance)+' твоих золотых яиц<small>Выбери подарок ниже</small></div></div><h3 style="text-align:left;margin:18px 0 10px">Подарить из инвентаря</h3><div class="gg">'+(own||'<p class="mut">В инвентаре пока нет подарков</p>')+'</div><h3 style="text-align:left;margin:22px 0 10px">Купить подарок для '+esc(target)+'</h3><div class="gg">'+shop+'</div></div>';
+    $('#prback').onclick=()=>{S.profileTarget=null;S.tab='chats';S.cur=target;setShell();paintSide();paintChat()};
+    return;
+  }
   const d=S.gifts,eq=d?.equipped||[];
   const sh=(d?.inventory||[]).filter(i=>eq.includes(Number(i.id))).map(i=>{const g=d.catalog.find(x=>x.id===i.gift_id);return'<span class="gi sm" style="--tc:#e8bb4d" title="'+esc(i.color+' · '+i.pattern+' · ур. '+i.level)+'">'+gsv(g?.id||1,PAL[i.color]||PAL['Золото'])+'</span>'}).join('');
-  m.innerHTML='<header class="ch"><div class="t"><b>Профиль</b></div></header><div class="pg" style="text-align:center">'+av(S.me,'big')+'<h2 style="margin:12px 0 0">'+esc(S.me)+vf(S.me)+'</h2><div class="wal" style="margin-top:16px">'+ic('egg')+'<div>'+fmt(d?.balance??S.prof?.balance??0)+' золотых яиц</div></div><label class="bt bl" style="cursor:pointer">'+ic('image')+'Изменить аватар<input id="af2" type="file" accept="image/*" hidden></label><p class="mut" style="margin:18px 0 6px">Подарки на витрине</p><div>'+(sh||'<span class="mut">Пусто. Выбери подарки в разделе «Подарки».</span>')+'</div><button class="bt" id="logout" style="margin-top:24px">'+ic('logout')+'Выйти</button></div>';
-  $('#af2').onchange=uploadAva
+  const admin=S.me.toLowerCase()==='alex';
+  m.innerHTML='<header class="ch"><div class="t"><b>Профиль</b></div></header><div class="pg" style="text-align:center">'+av(S.me,'big')+'<h2 style="margin:12px 0 0">'+esc(S.me)+vf(S.me)+'</h2><div class="wal" style="margin-top:16px">'+ic('egg')+'<div>'+fmt(d?.balance??S.prof?.balance??0)+' золотых яиц</div></div><label class="bt bl" style="cursor:pointer">'+ic('image')+'Изменить аватар<input id="af2" type="file" accept="image/*" hidden></label><p class="mut" style="margin:18px 0 6px">Подарки на витрине</p><div>'+(sh||'<span class="mut">Пусто. Выбери подарки в разделе «Подарки».</span>')+'</div>'+(admin?'<div style="text-align:left;margin-top:24px;padding:14px;border:1px solid var(--line);border-radius:16px"><h3>Управление ФабрLink · Alex</h3><p class="mut" style="margin:6px 0 12px">Загрузка аватара Боба Пал Лаича и общего фона чатов для всех.</p><label class="bt" style="cursor:pointer;margin-bottom:8px">Аватар Боба<input id="botaf" type="file" accept="image/*" hidden></label><label class="bt" style="cursor:pointer">Общий фон чатов<input id="bgf" type="file" accept="image/*" hidden></label></div>':'')+'<button class="bt" id="logout" style="margin-top:24px">'+ic('logout')+'Выйти</button></div>';
+  $('#af2').onchange=uploadAva;
+  if(admin){$('#botaf').onchange=e=>uploadGlobalImage(e,'bot_avatar');$('#bgf').onchange=e=>uploadGlobalImage(e,'chat_background')}
+}
+async function uploadGlobalImage(e,key){
+  const f=e.target.files?.[0];if(!f)return;
+  try{const p=await prep(f);await api('/api/settings',{method:'PUT',body:JSON.stringify({key,value:p.data})});S.settings[key]=p.data;applyGlobalSettings();toast(key==='bot_avatar'?'Аватар Боба обновлён для всех':'Общий фон чатов обновлён для всех');paintProfile()}
+  catch(x){toast(x.message)}
 }
 async function uploadAva(e){
   const f=e.target.files?.[0];if(!f)return;
