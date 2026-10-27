@@ -136,7 +136,7 @@ h1,h2,h3,p{margin:0}
 #app{padding:0}
 .shell{height:100%;min-height:0;grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;max-width:none;border:0;border-radius:0}
 .nav{grid-row:2;grid-column:1;min-height:76px;flex-direction:row;justify-content:space-around;gap:0;padding:4px 6px max(8px,env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);background:#0a1130f2}
-.nav button{flex:1;padding:7px 2px}
+.nav button{flex:1;min-width:0;padding:7px 1px;font-size:10px;white-space:nowrap}.nav button .ic{width:20px;height:20px}
 .nav button.on{box-shadow:none}
 .lg,.nav .sp,.nav .lo{display:none}
 .side,.main{grid-row:1;grid-column:1}
@@ -335,7 +335,7 @@ function auth(msg){
 function logout(silent){S.token='';S.me='';S.cur=null;S.cache={};S.gifts=null;localStorage.removeItem('fl_token');localStorage.removeItem('fl_session');auth(silent===true?'Сессия истекла, войдите снова':'')}
 
 /* ===== каркас ===== */
-const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['minigame','gamepad-2','Мини-игра'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
+const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['minigame','gamepad-2','Игра'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
 const navAct=()=>S.tab!=='chats'?S.tab:S.cur===GROUP?'group':S.cur===S.me?'saved':'chats';
 function mount(){
   $('#app').innerHTML='<div class="shell t-chats" id="sh"><nav class="nav"><div class="lg">'+ic('logo')+'</div>'+NAV.map(n=>'<button data-t="'+n[0]+'">'+ic(n[1])+n[2]+'</button>').join('')+'<span class="sp"></span><button class="lo" id="lo">'+ic('logout')+'Выйти</button></nav><section class="side"><div class="sh"><h1>Сообщения <span id="cnt"></span></h1><button id="cp" aria-label="Поиск">'+ic('edit')+'</button></div><div class="sr">'+ic('search')+'<input id="q" placeholder="Поиск по нику" autocomplete="off"></div><div class="list" id="list"></div></section><section class="main" id="main"></section><aside class="info" id="info"></aside></div>';
