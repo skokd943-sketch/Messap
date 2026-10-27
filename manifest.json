@@ -9,6 +9,6 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
-    {"src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+    {"src": "logo.webp", "sizes": "any", "type": "image/webp", "purpose": "any"}
   ]
 }
