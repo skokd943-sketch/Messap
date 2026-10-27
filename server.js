@@ -202,7 +202,7 @@ app.post('/api/gifts/equip', auth, async (req,res) => {
 });
 
 app.get('/api/users', auth, async (_req, res) => {
-  try { const r = await pool.query('SELECT u.username, u.created_at, p.avatar_data, p.equipped_gifts FROM users u LEFT JOIN profiles p ON p.username=u.username WHERE u.username <> 'pal_laich' ORDER BY u.username'); res.json({ users: r.rows }); }
+  try { const r = await pool.query("SELECT u.username, u.created_at, p.avatar_data, p.equipped_gifts FROM users u LEFT JOIN profiles p ON p.username=u.username WHERE u.username <> 'pal_laich' ORDER BY u.username"); res.json({ users: r.rows }); }
   catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить пользователей' }); }
 });
 app.get('/api/messages', auth, async (req, res) => {
@@ -250,7 +250,7 @@ app.post('/api/messages', auth, async (req, res) => {
 });
 app.get('/api/group', auth, async (_req, res) => {
   try {
-    const r = await pool.query('SELECT username FROM users WHERE username <> 'pal_laich' ORDER BY username');
+    const r = await pool.query("SELECT username FROM users WHERE username <> 'pal_laich' ORDER BY username");
     res.json({ title: 'Правители мира', members: r.rows.map(x => x.username) });
   } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить группу' }); }
 });
