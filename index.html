@@ -335,14 +335,13 @@ function auth(msg){
 function logout(silent){S.token='';S.me='';S.cur=null;S.cache={};S.gifts=null;localStorage.removeItem('fl_token');localStorage.removeItem('fl_session');auth(silent===true?'Сессия истекла, войдите снова':'')}
 
 /* ===== каркас ===== */
-const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['minigame','gamepad-2','Игра'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
+const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
 const navAct=()=>S.tab!=='chats'?S.tab:S.cur===GROUP?'group':S.cur===S.me?'saved':'chats';
 function mount(){
   $('#app').innerHTML='<div class="shell t-chats" id="sh"><nav class="nav"><div class="lg">'+ic('logo')+'</div>'+NAV.map(n=>'<button data-t="'+n[0]+'">'+ic(n[1])+n[2]+'</button>').join('')+'<span class="sp"></span><button class="lo" id="lo">'+ic('logout')+'Выйти</button></nav><section class="side"><div class="sh"><h1>Сообщения <span id="cnt"></span></h1><button id="cp" aria-label="Поиск">'+ic('edit')+'</button></div><div class="sr">'+ic('search')+'<input id="q" placeholder="Поиск по нику" autocomplete="off"></div><div class="list" id="list"></div></section><section class="main" id="main"></section><aside class="info" id="info"></aside></div>';
   document.querySelectorAll('.nav button[data-t]').forEach(b=>b.onclick=()=>{
     const t=b.dataset.t;
     if(t==='group'){S.profileTarget=null;return openChat(GROUP)}
-     if(t==='minigame'){S.profileTarget=null;S.tab='minigame';S.cur=null;setShell();paint();return}
     if(t==='saved')return openChat(S.me);
     S.tab=t;if(t!=='profile')S.profileTarget=null;if(t==='chats'&&(innerWidth<=760||[GROUP,S.me].includes(S.cur)))S.cur=null;
     setShell();paintSide();paint()
@@ -350,7 +349,7 @@ function mount(){
   $('#lo').onclick=()=>logout();
   $('#cp').onclick=()=>$('#q').focus();
   $('#q').oninput=e=>{S.q=e.target.value.toLowerCase();paintSide()};
-  $('#list').onclick=e=>{const b=e.target.closest('[data-c]');if(b)openChat(b.dataset.c)};
+  $('#list').onclick=e=>{if(e.target.closest('[data-mini-game]')){S.profileTarget=null;S.tab='minigame';S.cur=null;setShell();paint();return}const b=e.target.closest('[data-c]');if(b)openChat(b.dataset.c)};
   $('#main').onclick=onMain;
   $('#info').onclick=e=>{const i=e.target.closest('img.ok');if(i)openLb(i.src)};
   setShell();paintSide();paint()
@@ -400,7 +399,7 @@ function paintSide(){
   const names=S.users.filter(n=>n!==S.me&&n.includes(S.q)).sort((a,b)=>(last(b)?.t||0)-(last(a)?.t||0));
   $('#cnt').textContent='('+Math.max(S.users.length-1,0)+')';
   const row=(n,t)=>{const g=n===GROUP,m=last(n),on=!!S.presence[n];return'<button class="it'+(S.cur===n?' on':'')+'" data-c="'+esc(n)+'">'+av(n)+'<span class="mt"><b>'+esc(t)+vf(n)+(g||n===S.me?'':'<i class="online-dot '+(on?'':'off')+'" title="'+(on?'В сети':'Не в сети')+'"></i>')+'</b><small>'+esc(m?(m.f===S.me?'Вы: ':g?m.f+': ':'')+prev(m):g?S.users.length+' участников':n===S.me?'Личные заметки':'Нажмите, чтобы написать')+'</small></span>'+(m?'<span class="tm">'+hm(m.t)+'</span>':'')+'</button>'};
-  const h=(S.q?'':'<div class="lbl">'+ic('pin')+'Закреплённые</div>'+row(GROUP,GT)+row(S.me,'Избранное')+'<div class="lbl">'+ic('chat')+'Все сообщения</div>')+names.map(n=>row(n,n)).join('');
+  const h=(S.q?'':'<div class="lbl">'+ic('pin')+'Закреплённые</div>'+row(GROUP,GT)+'<button class="it" data-mini-game="1">'+av('🎮')+'<span class="mt"><b>Мини-игра</b><small>Тельмана / Фабричное · 2D</small></span></button>'+row(S.me,'Избранное')+'<div class="lbl">'+ic('chat')+'Все сообщения</div>')+names.map(n=>row(n,n)).join('');
   l.innerHTML=h+(names.length?'':'<p class="em">'+(S.q?'Никого не найдено':'Пока нет других пользователей')+'</p>')
 }
 
