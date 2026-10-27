@@ -1,7 +1,7 @@
 {
-  "name": "Фабричное",
-  "short_name": "Фабричное",
-  "description": "Сайт Фабричное",
+  "name": "ФабрLink",
+  "short_name": "ФабрLink",
+  "description": "Сайт ФабрLink",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,6 +9,6 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
-    {"src": "logo.webp", "sizes": "any", "type": "image/webp", "purpose": "any"}
+    {"src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
   ]
 }
