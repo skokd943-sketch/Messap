@@ -1,0 +1,12 @@
+{
+  "name": "Faberlink",
+  "short_name": "Faberlink",
+  "description": "Мессенджер Faberlink",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070d24",
+  "theme_color": "#070d24",
+  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}
