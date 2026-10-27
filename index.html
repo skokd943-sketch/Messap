@@ -370,27 +370,33 @@ function openChat(n){S.tab='chats';S.profileTarget=null;S.cur=n;setShell();paint
 function paint(){if(S.tab==='gifts')paintGifts();else if(S.tab==='profile')paintProfile();else if(S.tab==='minigame')paintMiniGame();else paintChat()}
 
 
-/* ===== мини-игра: аркадная карта ===== */
-const MINI={team:localStorage.getItem('fl_mini_team')||'',vehicle:'drone',target:'warehouse',hits:0,misses:0,train:42};
+/* ===== мини-игра: ручное управление дроном над общей картой ===== */
+const MINI={team:localStorage.getItem('fl_mini_team')||'',vehicle:'drone',hits:0,misses:0,objects:[],drone:{x:12,y:50},launched:false,route:[]};
+function miniObjects(){
+ const out=[];for(let i=0;i<9;i++){const town=i<5?'telmana':'fabrichnoe';out.push({id:i,x:12+Math.random()*76,y:13+Math.random()*74,type:Math.random()<.78?'Склад':'Объект',town,hit:false})}
+ MINI.objects=out;MINI.drone={x:12,y:50};MINI.launched=false;MINI.route=[];
+}
+if(!MINI.objects.length)miniObjects();
 function paintMiniGame(){
  const m=$('#main');if(!m)return;
- m.innerHTML='<div class="mg-screen"><div class="mg-head"><div><h2>⚔ Тельмана / Фабричное</h2><div class="mg-sub">Аркадная битва · 2D карта</div></div><button class="ib2" id="mg-exit" aria-label="Назад">'+ic('back')+'</button></div>'+
- '<div class="mg-sub">Выбери сторону, затем тип техники и игровую цель.</div>'+
- '<div class="mg-teams"><button class="mg-team '+(MINI.team==='telmana'?'on':'')+'" data-team="telmana"><b>🔵 Тельмана</b><small>Команда синей зоны</small></button><button class="mg-team '+(MINI.team==='fabrichnoe'?'on':'')+'" data-team="fabrichnoe"><b>🔴 Фабричное</b><small>Команда красной зоны</small></button></div>'+
- '<div class="mg-map"><span class="mg-base left">ТЕЛЬМАНА</span><span class="mg-base right">ФАБРИЧНОЕ</span><div class="mg-road"></div><div class="mg-rail"></div><div class="mg-building mg-b1">Склад A</div><div class="mg-building mg-b2">Склад B</div><div class="mg-building mg-b3">Склад C</div><div class="mg-building mg-b4">Склад D</div><div class="mg-train" style="left:'+MINI.train+'%"><span></span><span></span><span></span></div><div class="mg-drone">'+(MINI.vehicle==='drone'?'✈️':'🚀')+'</div>'+(MINI.hits?'':'')+'</div>'+
- '<div class="mg-controls"><div><label for="mg-vehicle">Техника</label><select id="mg-vehicle"><option value="drone" '+(MINI.vehicle==='drone'?'selected':'')+'>Беспилотник</option><option value="rocket" '+(MINI.vehicle==='rocket'?'selected':'')+'>Аркадная ракета</option></select></div><div><label for="mg-target">Игровая цель</label><select id="mg-target"><option value="warehouse" '+(MINI.target==='warehouse'?'selected':'')+'>Склад</option><option value="train" '+(MINI.target==='train'?'selected':'')+'>Поезд</option></select></div><button class="mg-fire" id="mg-fire">▶ Запустить '+(MINI.vehicle==='drone'?'беспилотник':'ракету')+'</button></div>'+
- '<div class="mg-score"><span>Твоя сторона<br><b>'+(MINI.team==='telmana'?'Тельмана':MINI.team==='fabrichnoe'?'Фабричное':'не выбрана')+'</b></span><span>Попадания<br><b>'+MINI.hits+'</b></span><span>Промахи<br><b>'+MINI.misses+'</b></span></div><p class="mg-sub" style="margin-top:10px">Демонстрационный режим: счёт пока хранится на этом устройстве.</p></div>';
+ const units=MINI.objects.map(o=>'<div class="mg-unit '+(o.hit?'destroyed':'')+'" style="left:'+o.x+'%;top:'+o.y+'%" title="'+o.type+'"><span>✚</span><small>'+o.type+'</small></div>').join('');
+ m.innerHTML='<style>'+
+ '.mg-screen{height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;overflow:auto}.mg-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.mg-head h2{font-size:19px;margin:0}.mg-sub{font-size:12px;opacity:.75;margin:0}.mg-teams{display:flex;gap:8px}.mg-team{flex:1;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text)}.mg-team.on{border-color:#e05252;background:#a72f2f22}.mg-team small{display:block;margin-top:4px}.mg-map{position:relative;flex:1;min-height:440px;max-height:68vh;overflow:hidden;border-radius:16px;background:#30455b;border:1px solid #60778c;touch-action:none;user-select:none}.mg-map:before{content:"";position:absolute;inset:-10%;background:repeating-linear-gradient(34deg,transparent 0 38px,#60768a 39px 41px,transparent 42px 76px),repeating-linear-gradient(124deg,transparent 0 64px,#50677c 65px 67px,transparent 68px 105px);opacity:.65}.mg-map:after{content:"";position:absolute;left:4%;right:4%;top:50%;height:8px;background:#b0b9c2;border:2px solid #778797;border-radius:8px;transform:rotate(-24deg);box-shadow:0 0 0 4px #30455b;pointer-events:none}.mg-town{position:absolute;z-index:1;color:#d9e4ee;font-size:11px;font-weight:800;letter-spacing:1px;background:#26394dcc;padding:6px 8px;border-radius:7px}.mg-town.t1{left:3%;top:5%}.mg-town.t2{right:3%;bottom:5%}.mg-connection{position:absolute;z-index:1;left:12%;top:48%;width:76%;height:4px;background:#d1b783;transform:rotate(-24deg);border-radius:6px}.mg-unit{position:absolute;z-index:3;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;color:#fff;text-shadow:0 1px 3px #000;font-size:18px}.mg-unit span{background:#d42d36;border:2px solid #ff7777;border-radius:6px;padding:2px 5px;box-shadow:0 2px 8px #1118}.mg-unit small{font-size:9px;white-space:nowrap}.mg-unit.destroyed{opacity:.22;filter:grayscale(1)}.mg-drone-live{position:absolute;z-index:5;left:12%;top:50%;transform:translate(-50%,-50%);font-size:30px;filter:drop-shadow(0 3px 3px #111);pointer-events:none}.mg-hud{position:absolute;z-index:6;top:8px;left:8px;background:#172536d9;color:white;padding:7px 9px;border-radius:8px;font-size:11px;pointer-events:none}.mg-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.mg-controls button,.mg-controls select{padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text)}.mg-fire{font-weight:700;flex:1}.mg-score{display:flex;justify-content:space-around;padding:9px;background:var(--panel);border-radius:10px;font-size:12px}.mg-score span{text-align:center}.mg-help{font-size:12px;opacity:.8}.mg-actions{display:flex;gap:8px}.mg-actions button{flex:1}.mg-explode{position:absolute;z-index:4;transform:translate(-50%,-50%);font-size:26px;pointer-events:none}'+
+ '</style><div class="mg-screen"><div class="mg-head"><div><h2>Тельмана ↔ Фабричное</h2><div class="mg-sub">Общая карта · ручное управление</div></div><button class="ib2" id="mg-exit" aria-label="Назад">'+ic('back')+'</button></div>'+
+ '<div class="mg-teams"><button class="mg-team '+(MINI.team==='telmana'?'on':'')+'" data-team="telmana"><b>🔵 Тельмана</b><small>Выбрать команду</small></button><button class="mg-team '+(MINI.team==='fabrichnoe'?'on':'')+'" data-team="fabrichnoe"><b>🔴 Фабричное</b><small>Выбрать команду</small></button></div>'+
+ '<div class="mg-map" id="mg-map"><div class="mg-hud">ДРОН · '+(MINI.launched?'В ПОЛЁТЕ':'ГОТОВ')+'<br>Веди пальцем по карте</div><div class="mg-town t1">ТЕЛЬМАНА</div><div class="mg-town t2">ФАБРИЧНОЕ</div><div class="mg-connection"></div>'+units+'<div class="mg-drone-live" id="mg-drone" style="left:'+MINI.drone.x+'%;top:'+MINI.drone.y+'%">🚁</div></div>'+
+ '<div class="mg-help">Нажми «Запустить дрон», затем перетаскивай его пальцем по карте. Красные значки — случайно размещённые объекты. При каждом новом раунде склады меняют места.</div>'+
+ '<div class="mg-actions"><button class="mg-fire" id="mg-launch">'+(MINI.launched?'Дрон в полёте':'🚁 Запустить дрон')+'</button><button class="mg-fire" id="mg-hit">🎯 Игровой залп</button><button class="mg-fire" id="mg-new">↻ Новая карта</button></div>'+
+ '<div class="mg-score"><span>Команда<br><b>'+(MINI.team==='telmana'?'Тельмана':MINI.team==='fabrichnoe'?'Фабричное':'не выбрана')+'</b></span><span>Попадания<br><b>'+MINI.hits+'</b></span><span>Промахи<br><b>'+MINI.misses+'</b></span></div></div>';
  $('#mg-exit').onclick=()=>{S.tab='chats';S.cur=null;setShell();paintSide();paint()};
  m.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>{MINI.team=b.dataset.team;localStorage.setItem('fl_mini_team',MINI.team);paintMiniGame()});
- $('#mg-vehicle').onchange=e=>{MINI.vehicle=e.target.value;paintMiniGame()};
- $('#mg-target').onchange=e=>{MINI.target=e.target.value;paintMiniGame()};
- $('#mg-fire').onclick=()=>{
-   if(!MINI.team){toast('Сначала выбери команду');return}
-   const hit=Math.random()<.72;
-   if(hit){MINI.hits++;if(MINI.target==='train')MINI.train=MINI.train>65?12:MINI.train+11;toast('Попадание! +1 очко')}
-   else{MINI.misses++;toast('Промах! Попробуй ещё раз')}
-   paintMiniGame();
- };
+ $('#mg-new').onclick=()=>{miniObjects();paintMiniGame()};
+ $('#mg-launch').onclick=()=>{if(!MINI.team){toast('Сначала выбери команду');return}MINI.launched=true;paintMiniGame();toast('Дрон запущен — веди пальцем по карте')};
+ const map=$('#mg-map');
+ map.onpointerdown=e=>{if(!MINI.launched)return;map.setPointerCapture(e.pointerId);moveDrone(e)};
+ map.onpointermove=e=>{if(MINI.launched&&map.hasPointerCapture(e.pointerId))moveDrone(e)};
+ function moveDrone(e){const r=map.getBoundingClientRect();MINI.drone.x=Math.max(3,Math.min(97,(e.clientX-r.left)/r.width*100));MINI.drone.y=Math.max(5,Math.min(95,(e.clientY-r.top)/r.height*100));const d=$('#mg-drone');if(d){d.style.left=MINI.drone.x+'%';d.style.top=MINI.drone.y+'%'}}
+ $('#mg-hit').onclick=()=>{if(!MINI.team){toast('Сначала выбери команду');return}if(!MINI.launched){toast('Сначала запусти дрон');return}let target=null,dist=1e9;MINI.objects.forEach(o=>{if(o.hit)return;const d=Math.hypot(o.x-MINI.drone.x,o.y-MINI.drone.y);if(d<dist){dist=d;target=o}});if(target&&dist<13){target.hit=true;MINI.hits++;toast('Игровое попадание по объекту!')}else{MINI.misses++;toast('Рядом нет объекта — промах')}paintMiniGame()};
 }
 
 /* ===== список чатов ===== */
