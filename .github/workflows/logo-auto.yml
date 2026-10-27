@@ -1,0 +1,65 @@
+name: Prepare logo automatically
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "logo-source.png"
+      - "logo-source.jpg"
+      - "logo-source.jpeg"
+      - "logo-source.webp"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-logo
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install image tools
+        run: python -m pip install Pillow
+      - name: Generate site icons
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageOps
+          from pathlib import Path
+
+          candidates = [
+              Path("logo-source.png"), Path("logo-source.jpg"),
+              Path("logo-source.jpeg"), Path("logo-source.webp")
+          ]
+          source = next((p for p in candidates if p.exists()), None)
+          if source is None:
+              raise SystemExit("Add a photo to the repository root named logo-source.png (or .jpg/.jpeg/.webp).")
+          im = Image.open(source).convert("RGBA")
+          # Keep the full photo visible in a square white canvas.
+          im.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+          canvas = Image.new("RGBA", (1024, 1024), (255, 255, 255, 255))
+          canvas.alpha_composite(im, ((1024-im.width)//2, (1024-im.height)//2))
+          canvas.convert("RGB").save("logo.png", "PNG", optimize=True)
+          canvas.resize((512, 512), Image.Resampling.LANCZOS).convert("RGB").save("icon-512.png", "PNG", optimize=True)
+          canvas.resize((180, 180), Image.Resampling.LANCZOS).convert("RGB").save("apple-touch-icon.png", "PNG", optimize=True)
+          canvas.resize((48, 48), Image.Resampling.LANCZOS).convert("RGB").save("favicon.png", "PNG", optimize=True)
+          canvas.resize((32, 32), Image.Resampling.LANCZOS).convert("RGB").save("favicon-32.png", "PNG", optimize=True)
+          print(f"Created icons from {source}")
+          PY
+      - name: Commit generated icons
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add logo.png icon-512.png apple-touch-icon.png favicon.png favicon-32.png
+          if git diff --cached --quiet; then
+            echo "Icons already up to date."
+          else
+            git commit -m "Automatically generate site icons from uploaded logo"
+            git push
+          fi
