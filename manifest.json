@@ -1,14 +1,14 @@
 {
   "name": "ФабрLink",
   "short_name": "ФабрLink",
-  "description": "Сайт ФабрLink",
-  "start_url": "./index.html",
+  "lang": "ru",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#0e1621",
+  "theme_color": "#17212b",
   "icons": [
-    {"src": "2341F654-35F3-4085-8DDD-522F7929D582.png", "type": "image/png", "purpose": "any"}
+    {"src": "2341F654-35F3-4085-8DDD-522F7929D582.png", "sizes": "any", "type": "image/png", "purpose": "any"}
   ]
 }
