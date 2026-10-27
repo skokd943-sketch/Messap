@@ -22,7 +22,7 @@ input,textarea{font-size:16px;cursor:text;-webkit-user-select:text;user-select:t
 button:focus-visible{outline:2px solid var(--blue)}
 h1,h2,h3,p{margin:0}
 .ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
-#app{height:var(--vh,100%);padding:14px}
+#app{height:var(--vh,100dvh);min-height:100%;padding:14px}
 .shell{height:100%;max-width:1380px;margin:auto;position:relative;display:grid;grid-template-columns:78px 330px minmax(0,1fr);border:1px solid var(--line);border-radius:24px;overflow:hidden;background:#070d2680}
 .nav{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border-right:1px solid var(--line);background:#0a113066}
 .lg{width:44px;height:44px;display:grid;place-items:center;color:#cfe0ff;margin-bottom:8px}
@@ -193,7 +193,7 @@ const prev=m=>IMG.test(m.x)||m.local?'Фото':m.x;
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',2400)}
 
 /* высота под клавиатуру и запрет масштабирования */
-const setVh=()=>{document.documentElement.style.setProperty('--vh',(window.visualViewport?.height||innerHeight)+'px');scrollTo(0,0)};
+const setVh=()=>{document.documentElement.style.setProperty('--vh','100dvh')};
 setVh();window.visualViewport?.addEventListener('resize',setVh);addEventListener('resize',setVh);
 ['gesturestart','gesturechange','gestureend'].forEach(e=>document.addEventListener(e,ev=>ev.preventDefault()));
 document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
