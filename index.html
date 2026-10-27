@@ -186,6 +186,7 @@ const ic=(n,c='')=>'<svg class="ic '+c+'"><use href="#i-'+n+'"/></svg>';
 const vf=n=>String(n).toLowerCase()==='alex'?'<span class="vf" title="Подтверждённый пользователь">'+ic('egg')+'</span>':'';
 const IMG=/^\[img:(\d+)(?::(\d+)x(\d+))?\]$/;
 const last=n=>(S.cache[n]||[]).at(-1);
+const disp=n=>n==='pal_laich'?'Боб Пал Лаич':n;
 const prev=m=>IMG.test(m.x)||m.local?'Фото':m.x;
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',2400)}
 
@@ -379,7 +380,7 @@ function drawMsgs(force){
   for(const m of items){
     const k=dk(m.t);if(k!==d){d=k;h+='<div class="day">'+k+'</div>'}
     const me=m.f===S.me,x=IMG.exec(m.x),clk=m.p?ic('clock'):'';
-    const nm=g&&!me?'<span class="nm" style="color:hsl('+hue(m.f)+' 85% 72%)">'+esc(m.f)+'</span>':'';
+    const nm=g&&!me?'<span class="nm" style="color:hsl('+hue(m.f)+' 85% 72%)">'+esc(disp(m.f))+'</span>':'';
     if(m.local)h+='<div class="bub im'+(me?' me':'')+' pend">'+nm+'<img class="ph ok" style="aspect-ratio:'+m.w+'/'+m.h+'" src="'+m.local+'" alt=""><time>'+hm(m.t)+clk+'</time></div>';
     else if(x)h+='<div class="bub im'+(me?' me':'')+'">'+nm+'<img class="ph" data-img="'+x[1]+'" style="aspect-ratio:'+(x[2]?x[2]+'/'+x[3]:'4/3')+'" alt=""><time>'+hm(m.t)+'</time></div>';
     else h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+esc(m.x)+'<time>'+hm(m.t)+clk+'</time></div>'
@@ -507,6 +508,7 @@ setInterval(async()=>{
   }catch{}finally{busy=false}
 },4000);
 setInterval(async()=>{if(document.hidden||!S.token||!$('#sh'))return;try{await loadUsers();paintSide()}catch{}},60000);
+setInterval(async()=>{if(document.hidden||!S.token||!$('#sh'))return;try{const old=S.settings.chat_background;await loadSettings();if(old!==S.settings.chat_background){applyGlobalSettings();if(S.tab==='chats')paintChat()}}catch{}},20000);
 
 if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 S.token&&S.me?boot():auth();
