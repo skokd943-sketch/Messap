@@ -151,7 +151,36 @@ h1,h2,h3,p{margin:0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 .fm-box{padding:16px;border:1px solid #ffd66b44;border-radius:18px;background:linear-gradient(145deg,#382b10aa,#101735)}.slot-reels{display:flex;justify-content:center;gap:10px;margin:18px 0}.slot-reels span{width:72px;height:82px;display:grid;place-items:center;font-size:38px;border-radius:14px;background:#070b1d;border:1px solid #ffd66b66;box-shadow:inset 0 0 18px #ffd66b18}.fm-row{display:flex;gap:8px;margin:10px 0}.fm-row input{min-width:0;width:100%;padding:11px 12px;border-radius:12px;background:#ffffff12;border:1px solid var(--line)}.fm-result{text-align:center;min-height:24px;margin:10px 0;color:#ffe18a;font-weight:800}.admin-stars{margin-top:16px;padding:14px;border-radius:16px;background:#ffffff08;border:1px solid var(--line)}
-<style>.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#36d875;margin-left:6px}.online-dot.off{background:#778092}.msg-tools{display:none;gap:5px;margin-top:7px;flex-wrap:wrap}.bub.msg-menu-open .msg-tools{display:flex}.msg-tools button{font-size:12px;padding:6px 9px;border-radius:8px;background:#0002;color:inherit;touch-action:manipulation}.bub{user-select:none;-webkit-user-select:none}.reply-preview{font-size:12px;padding:4px 7px;border-left:3px solid #ffd66b;background:#0002;margin-bottom:5px}</style>
+<style>.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#36d875;margin-left:6px}.online-dot.off{background:#778092}.msg-tools{display:none;gap:5px;margin-top:7px;flex-wrap:wrap}.bub.msg-menu-open .msg-tools{display:flex}.msg-tools button{font-size:12px;padding:6px 9px;border-radius:8px;background:#0002;color:inherit;touch-action:manipulation}.bub{user-select:none;-webkit-user-select:none}.reply-preview{font-size:12px;padding:4px 7px;border-left:3px solid #ffd66b;background:#0002;margin-bottom:5px}
+/* Mini-game */
+.mg-screen{flex:1;min-height:0;overflow:auto;padding:16px;background:radial-gradient(ellipse at 50% 0,#172b60,#080e27 72%)}
+.mg-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.mg-head h2{font-size:22px}.mg-sub{color:var(--mut);font-size:13px}
+.mg-teams{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.mg-team{padding:13px 10px;border-radius:14px;border:1px solid #ffffff20;background:#ffffff08;text-align:center}
+.mg-team.on{border-color:#57a1ff;background:#2f8cff25;box-shadow:0 0 0 1px #2f8cff33}
+.mg-team b{display:block;font-size:15px}.mg-team small{color:var(--mut)}
+.mg-map{position:relative;min-height:260px;aspect-ratio:1.45;border-radius:18px;overflow:hidden;border:1px solid #7f9bce55;background-color:#142642;background-image:linear-gradient(#9db9e01a 1px,transparent 1px),linear-gradient(90deg,#9db9e01a 1px,transparent 1px),linear-gradient(135deg,#1d3c3b,#182b42 50%,#3a3030);background-size:24px 24px,24px 24px,100% 100%}
+.mg-road{position:absolute;left:-5%;top:56%;width:110%;height:22px;background:#747f8d;transform:rotate(-9deg);border-block:2px solid #d6dce2aa}
+.mg-rail{position:absolute;left:-4%;top:69%;width:108%;height:5px;background:repeating-linear-gradient(90deg,#d6d6d6 0 10px,#333 10px 15px);transform:rotate(-9deg)}
+.mg-building{position:absolute;width:24%;height:19%;display:grid;place-items:center;border:2px solid #d8e4f5aa;border-radius:5px;background:linear-gradient(135deg,#6c7f93,#354a5d);box-shadow:inset 0 0 0 4px #14233b;color:white;font-size:clamp(10px,2vw,13px);text-align:center}
+.mg-building:after{content:"";position:absolute;inset:5px;border:1px solid #ffffff30}
+.mg-b1{left:8%;top:13%}.mg-b2{right:8%;top:17%}.mg-b3{left:12%;bottom:10%}.mg-b4{right:12%;bottom:9%}
+.mg-base{position:absolute;top:5px;font-size:10px;font-weight:800;letter-spacing:.4px;padding:4px 7px;border-radius:6px;background:#0a102acc}
+.mg-base.left{left:5px;color:#79b5ff}.mg-base.right{right:5px;color:#ff9c9c}
+.mg-train{position:absolute;left:42%;top:63%;display:flex;gap:3px;transform:rotate(-9deg);transition:left .4s}
+.mg-train span{width:23px;height:13px;border-radius:3px;background:#d5a75e;border:1px solid #ffe0a0}
+.mg-drone{position:absolute;left:47%;top:35%;font-size:26px;filter:drop-shadow(0 3px 4px #0008)}
+.mg-map-hit{position:absolute;inset:0;display:grid;place-items:center;background:#060b1f99;color:white;font-weight:800;font-size:20px;text-shadow:0 2px 6px #000}
+.mg-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.mg-controls label{display:block;color:var(--mut);font-size:12px;margin-bottom:5px}
+.mg-controls select{width:100%;padding:11px;border:1px solid var(--line);border-radius:12px;background:#101a3b}
+.mg-fire{grid-column:1/-1;padding:13px;border-radius:13px;background:linear-gradient(135deg,#2f8cff,#4a5dff);font-weight:800;color:white}
+.mg-score{display:flex;justify-content:space-between;gap:10px;margin-top:12px;padding:12px;border-radius:12px;background:#ffffff0b;font-size:13px}
+.mg-score b{font-size:18px}
+@media(max-width:760px){.mg-screen{padding:14px}.mg-map{min-height:230px}.mg-head h2{font-size:19px}}
+
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe68a"/><stop offset="1" stop-color="#d9962b"/></linearGradient></defs>
@@ -306,13 +335,14 @@ function auth(msg){
 function logout(silent){S.token='';S.me='';S.cur=null;S.cache={};S.gifts=null;localStorage.removeItem('fl_token');localStorage.removeItem('fl_session');auth(silent===true?'Сессия истекла, войдите снова':'')}
 
 /* ===== каркас ===== */
-const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
+const NAV=[['chats','chat','Чаты'],['group','users','Группа'],['minigame','gamepad-2','Мини-игра'],['gifts','gift','Подарки'],['saved','bookmark','Избранное'],['profile','user','Профиль']];
 const navAct=()=>S.tab!=='chats'?S.tab:S.cur===GROUP?'group':S.cur===S.me?'saved':'chats';
 function mount(){
   $('#app').innerHTML='<div class="shell t-chats" id="sh"><nav class="nav"><div class="lg">'+ic('logo')+'</div>'+NAV.map(n=>'<button data-t="'+n[0]+'">'+ic(n[1])+n[2]+'</button>').join('')+'<span class="sp"></span><button class="lo" id="lo">'+ic('logout')+'Выйти</button></nav><section class="side"><div class="sh"><h1>Сообщения <span id="cnt"></span></h1><button id="cp" aria-label="Поиск">'+ic('edit')+'</button></div><div class="sr">'+ic('search')+'<input id="q" placeholder="Поиск по нику" autocomplete="off"></div><div class="list" id="list"></div></section><section class="main" id="main"></section><aside class="info" id="info"></aside></div>';
   document.querySelectorAll('.nav button[data-t]').forEach(b=>b.onclick=()=>{
     const t=b.dataset.t;
     if(t==='group'){S.profileTarget=null;return openChat(GROUP)}
+     if(t==='minigame'){S.profileTarget=null;S.tab='minigame';S.cur=null;setShell();paint();return}
     if(t==='saved')return openChat(S.me);
     S.tab=t;if(t!=='profile')S.profileTarget=null;if(t==='chats'&&(innerWidth<=760||[GROUP,S.me].includes(S.cur)))S.cur=null;
     setShell();paintSide();paint()
@@ -338,7 +368,31 @@ async function boot(){
   if($('#sh')){paintSide();paint();api('/api/presence/ping',{method:'POST',body:'{}'}).catch(()=>{});setInterval(async()=>{try{await api('/api/presence/ping',{method:'POST',body:'{}'});await loadUsers();if(S.tab==='chats'){paintSide();if(S.cur)paintChat()}}catch{}},30000)}
 }
 function openChat(n){S.tab='chats';S.profileTarget=null;S.cur=n;setShell();paintSide();paintChat()}
-function paint(){if(S.tab==='gifts')paintGifts();else if(S.tab==='profile')paintProfile();else paintChat()}
+function paint(){if(S.tab==='gifts')paintGifts();else if(S.tab==='profile')paintProfile();else if(S.tab==='minigame')paintMiniGame();else paintChat()}
+
+
+/* ===== мини-игра: аркадная карта ===== */
+const MINI={team:localStorage.getItem('fl_mini_team')||'',vehicle:'drone',target:'warehouse',hits:0,misses:0,train:42};
+function paintMiniGame(){
+ const m=$('#main');if(!m)return;
+ m.innerHTML='<div class="mg-screen"><div class="mg-head"><div><h2>⚔ Тельмана / Фабричное</h2><div class="mg-sub">Аркадная битва · 2D карта</div></div><button class="ib2" id="mg-exit" aria-label="Назад">'+ic('back')+'</button></div>'+
+ '<div class="mg-sub">Выбери сторону, затем тип техники и игровую цель.</div>'+
+ '<div class="mg-teams"><button class="mg-team '+(MINI.team==='telmana'?'on':'')+'" data-team="telmana"><b>🔵 Тельмана</b><small>Команда синей зоны</small></button><button class="mg-team '+(MINI.team==='fabrichnoe'?'on':'')+'" data-team="fabrichnoe"><b>🔴 Фабричное</b><small>Команда красной зоны</small></button></div>'+
+ '<div class="mg-map"><span class="mg-base left">ТЕЛЬМАНА</span><span class="mg-base right">ФАБРИЧНОЕ</span><div class="mg-road"></div><div class="mg-rail"></div><div class="mg-building mg-b1">Склад A</div><div class="mg-building mg-b2">Склад B</div><div class="mg-building mg-b3">Склад C</div><div class="mg-building mg-b4">Склад D</div><div class="mg-train" style="left:'+MINI.train+'%"><span></span><span></span><span></span></div><div class="mg-drone">'+(MINI.vehicle==='drone'?'✈️':'🚀')+'</div>'+(MINI.hits?'':'')+'</div>'+
+ '<div class="mg-controls"><div><label for="mg-vehicle">Техника</label><select id="mg-vehicle"><option value="drone" '+(MINI.vehicle==='drone'?'selected':'')+'>Беспилотник</option><option value="rocket" '+(MINI.vehicle==='rocket'?'selected':'')+'>Аркадная ракета</option></select></div><div><label for="mg-target">Игровая цель</label><select id="mg-target"><option value="warehouse" '+(MINI.target==='warehouse'?'selected':'')+'>Склад</option><option value="train" '+(MINI.target==='train'?'selected':'')+'>Поезд</option></select></div><button class="mg-fire" id="mg-fire">▶ Запустить '+(MINI.vehicle==='drone'?'беспилотник':'ракету')+'</button></div>'+
+ '<div class="mg-score"><span>Твоя сторона<br><b>'+(MINI.team==='telmana'?'Тельмана':MINI.team==='fabrichnoe'?'Фабричное':'не выбрана')+'</b></span><span>Попадания<br><b>'+MINI.hits+'</b></span><span>Промахи<br><b>'+MINI.misses+'</b></span></div><p class="mg-sub" style="margin-top:10px">Демонстрационный режим: счёт пока хранится на этом устройстве.</p></div>';
+ $('#mg-exit').onclick=()=>{S.tab='chats';S.cur=null;setShell();paintSide();paint()};
+ m.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>{MINI.team=b.dataset.team;localStorage.setItem('fl_mini_team',MINI.team);paintMiniGame()});
+ $('#mg-vehicle').onchange=e=>{MINI.vehicle=e.target.value;paintMiniGame()};
+ $('#mg-target').onchange=e=>{MINI.target=e.target.value;paintMiniGame()};
+ $('#mg-fire').onclick=()=>{
+   if(!MINI.team){toast('Сначала выбери команду');return}
+   const hit=Math.random()<.72;
+   if(hit){MINI.hits++;if(MINI.target==='train')MINI.train=MINI.train>65?12:MINI.train+11;toast('Попадание! +1 очко')}
+   else{MINI.misses++;toast('Промах! Попробуй ещё раз')}
+   paintMiniGame();
+ };
+}
 
 /* ===== список чатов ===== */
 function paintSide(){
