@@ -1,12 +1,14 @@
 {
-  "name": "Faberlink",
-  "short_name": "Faberlink",
-  "description": "Мессенджер Faberlink",
+  "name": "Фабричное",
+  "short_name": "Фабричное",
+  "description": "Сайт Фабричное",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#070d24",
-  "theme_color": "#070d24",
-  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {"src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
 }
