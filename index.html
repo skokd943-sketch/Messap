@@ -345,7 +345,7 @@ function paintSide(){
   const l=$('#list');if(!l)return;
   const names=S.users.filter(n=>n!==S.me&&n.includes(S.q)).sort((a,b)=>(last(b)?.t||0)-(last(a)?.t||0));
   $('#cnt').textContent='('+Math.max(S.users.length-1,0)+')';
-  const row=(n,t)=>{const g=n===GROUP,m=last(n);return'<button class="it'+(S.cur===n?' on':'')+'" data-c="'+esc(n)+'">'+av(n)+'<span class="mt"><b>'+esc(t)+vf(n)+'</b><small>'+esc(m?(m.f===S.me?'Вы: ':g?m.f+': ':'')+prev(m):g?S.users.length+' участников':n===S.me?'Личные заметки':'Нажмите, чтобы написать')+'</small></span>'+(m?'<span class="tm">'+hm(m.t)+'</span>':'')+'</button>'};
+  const row=(n,t)=>{const g=n===GROUP,m=last(n),on=!!S.presence[n];return'<button class="it'+(S.cur===n?' on':'')+'" data-c="'+esc(n)+'">'+av(n)+'<span class="mt"><b>'+esc(t)+vf(n)+(g||n===S.me?'':'<i class="online-dot '+(on?'':'off')+'" title="'+(on?'В сети':'Не в сети')+'"></i>')+'</b><small>'+esc(m?(m.f===S.me?'Вы: ':g?m.f+': ':'')+prev(m):g?S.users.length+' участников':n===S.me?'Личные заметки':'Нажмите, чтобы написать')+'</small></span>'+(m?'<span class="tm">'+hm(m.t)+'</span>':'')+'</button>'};
   const h=(S.q?'':'<div class="lbl">'+ic('pin')+'Закреплённые</div>'+row(GROUP,GT)+row(S.me,'Избранное')+'<div class="lbl">'+ic('chat')+'Все сообщения</div>')+names.map(n=>row(n,n)).join('');
   l.innerHTML=h+(names.length?'':'<p class="em">'+(S.q?'Никого не найдено':'Пока нет других пользователей')+'</p>')
 }
