@@ -151,7 +151,7 @@ h1,h2,h3,p{margin:0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
 .fm-box{padding:16px;border:1px solid #ffd66b44;border-radius:18px;background:linear-gradient(145deg,#382b10aa,#101735)}.slot-reels{display:flex;justify-content:center;gap:10px;margin:18px 0}.slot-reels span{width:72px;height:82px;display:grid;place-items:center;font-size:38px;border-radius:14px;background:#070b1d;border:1px solid #ffd66b66;box-shadow:inset 0 0 18px #ffd66b18}.fm-row{display:flex;gap:8px;margin:10px 0}.fm-row input{min-width:0;width:100%;padding:11px 12px;border-radius:12px;background:#ffffff12;border:1px solid var(--line)}.fm-result{text-align:center;min-height:24px;margin:10px 0;color:#ffe18a;font-weight:800}.admin-stars{margin-top:16px;padding:14px;border-radius:16px;background:#ffffff08;border:1px solid var(--line)}
-</style>
+<style>.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#36d875;margin-left:6px}.online-dot.off{background:#778092}.msg-tools{display:flex;gap:5px;margin-top:5px}.msg-tools button{font-size:11px;padding:3px 6px;border-radius:6px;background:#0002;color:inherit}.reply-preview{font-size:12px;padding:4px 7px;border-left:3px solid #ffd66b;background:#0002;margin-bottom:5px}</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe68a"/><stop offset="1" stop-color="#d9962b"/></linearGradient></defs>
@@ -179,7 +179,7 @@ h1,h2,h3,p{margin:0}
 <main id="app"></main><div id="toast"></div><div id="lb" hidden></div>
 <script>
 const API='https://messap.onrender.com',GROUP='__rulers_world__',GT='Правители мира',$=s=>document.querySelector(s);
-const S={token:localStorage.getItem('fl_token')||'',me:localStorage.getItem('fl_session')||'',tab:'chats',cur:null,mode:'login',q:'',users:[],av:{},raw:{},prof:null,gifts:null,gt:'shop',profileTarget:null,settings:{},cache:{},imgs:{},info:innerWidth>=1200};
+const S={token:localStorage.getItem('fl_token')||'',me:localStorage.getItem('fl_session')||'',tab:'chats',cur:null,mode:'login',q:'',users:[],av:{},raw:{},prof:null,gifts:null,gt:'shop',profileTarget:null,settings:{},cache:{},imgs:{},presence:{},reply:null,info:innerWidth>=1200};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n).toLocaleString('ru');
 const hm=t=>new Date(Number(t)).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
@@ -269,7 +269,7 @@ async function sendImage(file){
     const m=IMG.exec(d.message.x);if(m)S.imgs[m[1]]=blobUrl(p.data);
     const a=S.cache[peer],i=a.indexOf(tmp);if(i>-1){a.some(x=>String(x.id)===String(d.message.id))?a.splice(i,1):a[i]=d.message}
   }catch(e){const a=S.cache[peer],i=a.indexOf(tmp);if(i>-1)a.splice(i,1);toast(e.message)}
-  if(S.cur===peer)drawMsgs(false);paintSide();paintInfo()
+  if(S.cur===peer)drawMsgs(false);S.reply=null;$('#replybar')?.remove();paintSide();paintInfo()
 }
 function openLb(src){const l=$('#lb');l.innerHTML='<img src="'+src+'" alt=""><button aria-label="Закрыть">'+ic('close')+'</button>';l.hidden=false}
 function closeLb(){$('#lb').hidden=true}
@@ -277,7 +277,7 @@ $('#lb').onclick=closeLb;
 
 /* ===== данные ===== */
 async function loadMe(){const d=await api('/api/me');S.me=d.username;S.prof=d;setAv(S.me,d.avatar_data);localStorage.setItem('fl_session',S.me)}
-async function loadUsers(){const d=await api('/api/users');S.users=d.users.map(u=>{setAv(u.username,u.avatar_data);return u.username})}
+async function loadUsers(){const d=await api('/api/users');S.presence={};d.users.forEach(u=>{setAv(u.username,u.avatar_data);S.presence[u.username]=!!u.last_seen_at&&(Date.now()-new Date(u.last_seen_at).getTime()<90000)});S.users=d.users.map(u=>u.username)}
 async function thread(n){const d=await api('/api/messages?peer='+encodeURIComponent(n));return S.cache[n]=(d.messages||[]).concat((S.cache[n]||[]).filter(m=>m.p))}
 async function loadGifts(){S.gifts=await api('/api/gifts');setAv(S.me,S.gifts.avatar);return S.gifts}
 async function loadSettings(){try{S.settings=await api('/api/settings');applyGlobalSettings()}catch(e){}}
@@ -335,7 +335,7 @@ async function boot(){
   if(!S.token||!S.me)return auth();
   mount();
   try{await Promise.all([loadMe(),loadUsers(),loadSettings()])}catch(e){if(!S.token)return;toast(e.message)}
-  if($('#sh')){paintSide();paint()}
+  if($('#sh')){paintSide();paint();api('/api/presence/ping',{method:'POST',body:'{}'}).catch(()=>{});setInterval(async()=>{try{await api('/api/presence/ping',{method:'POST',body:'{}'});await loadUsers();if(S.tab==='chats'){paintSide();if(S.cur)paintChat()}}catch{}},30000)}
 }
 function openChat(n){S.tab='chats';S.profileTarget=null;S.cur=n;setShell();paintSide();paintChat()}
 function paint(){if(S.tab==='gifts')paintGifts();else if(S.tab==='profile')paintProfile();else paintChat()}
@@ -366,39 +366,22 @@ async function paintChat(){
   ta.onpaste=e=>{const f=[...(e.clipboardData?.files||[])].filter(x=>x.type.startsWith('image/'));if(f.length){e.preventDefault();f.forEach(sendImage)}};
   $('#cf').onsubmit=e=>{e.preventDefault();send()};
   $('#sd').onpointerdown=e=>e.preventDefault();
-  $('#ms').onclick=e=>{const i=e.target.closest('img.ph.ok');if(i)openLb(i.src)};
+  $('#ms').onclick=async e=>{const img=e.target.closest('img.ph.ok');if(img){openLb(img.src);return}const a=e.target.closest('[data-msgact]');if(!a)return;const m=(S.cache[S.cur]||[]).find(x=>String(x.id)===a.dataset.id);if(!m)return;if(a.dataset.msgact==='copy'){try{await navigator.clipboard.writeText(m.x);toast('Скопировано')}catch{toast('Не удалось скопировать')}return}if(a.dataset.msgact==='reply'){S.reply=m;$('#replybar')?.remove();const bar=document.createElement('div');bar.id='replybar';bar.className='reply-preview';bar.textContent='Ответ: '+m.f+' — '+m.x.slice(0,100);$('#cf').before(bar);$('#msg').focus();return}if(a.dataset.msgact==='forward'){const target=prompt('Ник получателя');if(!target)return;try{await api('/api/messages',{method:'POST',body:JSON.stringify({peer:target.trim().replace(/^@/,'').toLowerCase(),body:m.x,forwardedFrom:m.f})});toast('Переслано')}catch(err){toast(err.message)}}};
   drawMsgs(true);paintInfo();
   if(!S.cache[n]){
     try{await thread(n)}catch(e){if(S.cur===n&&$('#ms'))$('#ms').innerHTML='<div class="em">'+esc(e.message)+'</div>';return}
     if(S.cur!==n||S.tab!=='chats')return;drawMsgs(true);paintSide();paintInfo()
   }
 }
-function drawMsgs(force){
-  const box=$('#ms');if(!box||!S.cur)return;
-  const items=S.cache[S.cur];
-  if(!items){box.innerHTML='<div class="em">Загрузка…</div>';return}
-  const near=box.scrollHeight-box.scrollTop-box.clientHeight<120,g=S.cur===GROUP;
-  let h='',d='';
-  for(const m of items){
-    const k=dk(m.t);if(k!==d){d=k;h+='<div class="day">'+k+'</div>'}
-    const me=m.f===S.me,x=IMG.exec(m.x),clk=m.p?ic('clock'):'';
-    const nm=g&&!me?'<span class="nm" style="color:hsl('+hue(m.f)+' 85% 72%)">'+esc(disp(m.f))+'</span>':'';
-    if(m.local)h+='<div class="bub im'+(me?' me':'')+' pend">'+nm+'<img class="ph ok" style="aspect-ratio:'+m.w+'/'+m.h+'" src="'+m.local+'" alt=""><time>'+hm(m.t)+clk+'</time></div>';
-    else if(x)h+='<div class="bub im'+(me?' me':'')+'">'+nm+'<img class="ph" data-img="'+x[1]+'" style="aspect-ratio:'+(x[2]?x[2]+'/'+x[3]:'4/3')+'" alt=""><time>'+hm(m.t)+'</time></div>';
-    else h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+esc(m.x)+'<time>'+hm(m.t)+clk+'</time></div>'
-  }
-  box.innerHTML=h||'<div class="em">'+(S.cur===S.me?'Сохраняйте здесь заметки и фото':'Напишите первое сообщение')+'</div>';
-  lazyImgs(box);
-  if(force||near)box.scrollTop=box.scrollHeight
-}
+function drawMsgs(force){const box=$('#ms');if(!box||!S.cur)return;const items=S.cache[S.cur];if(!items){box.innerHTML='<div class="em">Загрузка…</div>';return}const near=box.scrollHeight-box.scrollTop-box.clientHeight<120,g=S.cur===GROUP;let h='',d='';for(const m of items){const k=dk(m.t);if(k!==d){d=k;h+='<div class="day">'+k+'</div>'}const me=m.f===S.me,x=IMG.exec(m.x),nm=g&&!me?'<span class="nm">'+esc(disp(m.f))+'</span>':'',rp=m.reply_x?'<div class="reply-preview">↪ '+esc(m.reply_f||'')+': '+esc(m.reply_x)+'</div>':m.forwarded_from?'<div class="reply-preview">Переслано от @'+esc(m.forwarded_from)+'</div>':'',tools='<div class="msg-tools"><button data-msgact="reply" data-id="'+esc(m.id)+'">Ответить</button><button data-msgact="forward" data-id="'+esc(m.id)+'">Переслать</button><button data-msgact="copy" data-id="'+esc(m.id)+'">Копировать</button></div>';if(x)h+='<div class="bub'+(me?' me':'')+'">'+nm+rp+'<img class="ph" data-img="'+x[1]+'" alt=""><time>'+hm(m.t)+'</time>'+tools+'</div>';else h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+rp+esc(m.x)+'<time>'+hm(m.t)+(m.p?ic('clock'):'')+'</time>'+tools+'</div>'}box.innerHTML=h||'<div class="em">Напишите первое сообщение</div>';lazyImgs(box);if(force||near)box.scrollTop=box.scrollHeight}
 function autosize(){const t=$('#msg');if(!t)return;t.style.height='auto';t.style.height=Math.min(t.scrollHeight,120)+'px'}
 async function send(){
   const ta=$('#msg');if(!ta||!S.cur)return;
-  const body=ta.value.trim();if(!body)return;
+  const body=ta.value.trim();if(!body)return;const replyTo=S.reply;
   const peer=S.cur,tmp={id:'t'+Date.now(),f:S.me,x:body,t:Date.now(),p:1};
   ta.value='';autosize();(S.cache[peer]=S.cache[peer]||[]).push(tmp);drawMsgs(true);paintSide();
   try{
-    const d=await api('/api/messages',{method:'POST',body:JSON.stringify({peer,body})});
+    const d=await api('/api/messages',{method:'POST',body:JSON.stringify({peer,body,replyTo:replyTo?.id})});
     const a=S.cache[peer],i=a.indexOf(tmp);
     if(i>-1){a.some(m=>String(m.id)===String(d.message.id))?a.splice(i,1):a[i]=d.message}
   }catch(e){
