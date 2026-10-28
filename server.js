@@ -144,6 +144,22 @@ app.post('/api/login', async (req, res) => {
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Ошибка входа' }); }
 });
 
+
+const droneHitTimes = new Map();
+app.post('/api/minigame/hit', auth, async (req, res) => {
+  const now = Date.now(), last = droneHitTimes.get(req.username) || 0;
+  if (now - last < 400) return res.status(429).json({ error: 'Слишком быстро' });
+  droneHitTimes.set(req.username, now);
+  try {
+    await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING', [req.username]);
+    const r = await pool.query('UPDATE profiles SET balance=balance+20,updated_at=NOW() WHERE username=$1 RETURNING balance', [req.username]);
+    res.json({ ok: true, reward: 20, balance: Number(r.rows[0].balance) });
+  } catch (e) {
+    console.error('Minigame reward error:', e.message);
+    res.status(500).json({ error: 'Не удалось начислить золотые яйца' });
+  }
+});
+
 app.get('/api/me', auth, async (req, res) => {
   try {
     await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING', [req.username]);
