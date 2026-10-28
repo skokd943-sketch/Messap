@@ -25,7 +25,7 @@ module.exports = function (app, pool, auth) {
 
   app.post('/api/voice', auth, async (req, res) => {
     await ready;
-    const m = /^data:(audio\/(?:webm|ogg|mp4|mpeg|wav|x-m4a|aac));base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.audio || ''));
+    const m = /^data:(audio\/(?:webm|ogg|mp4|mpeg|wav|x-m4a|aac)(?:;codecs=[A-Za-z0-9.,_-]+)?);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.audio || ''));
     const duration = Number(req.body?.duration);
     if (!m || m[2].length > 7000000) return res.status(400).json({ error: 'Голосовое должно быть аудио до 5 МБ' });
     if (!Number.isFinite(duration) || duration < 1 || duration > 300) return res.status(400).json({ error: 'Длительность записи должна быть до 5 минут' });
