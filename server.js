@@ -107,6 +107,7 @@ async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS call_signals_call_id_idx ON call_signals(call_id,id);
     ALTER TABLE gift_inventory ADD COLUMN IF NOT EXISTS listed_price BIGINT CHECK (listed_price IS NULL OR listed_price > 0);
+    ALTER TABLE gift_inventory ADD COLUMN IF NOT EXISTS upgraded BOOLEAN NOT NULL DEFAULT FALSE;\n    ALTER TABLE gift_inventory ADD COLUMN IF NOT EXISTS unique_quality TEXT;
     CREATE INDEX IF NOT EXISTS gift_inventory_listed_idx ON gift_inventory(listed_price) WHERE listed_price IS NOT NULL;
 
   `);
@@ -162,19 +163,65 @@ app.put('/api/profile', auth, async (req, res) => {
   } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось сохранить аватар' }); }
 });
 const GIFT_CATALOG = [
- ['Золотое яйцо',500,'🥚'],['Лунный кролик',700,'🐇'],['Кристальная роза',850,'🌹'],['Золотая корона',1000,'👑'],['Мини-дракон',1200,'🐉'],
- ['Сияющий куб',1400,'💎'],['Космический кот',1600,'🐈'],['Солнечный цветок',1800,'🌻'],['Сапфировое сердце',2000,'💙'],['Золотой ключ',2200,'🗝️'],
- ['Лунная маска',2400,'🎭'],['Метеорит',2600,'☄️'],['Королевский щит',2800,'🛡️'],['Магический гриб',3000,'🍄'],['Жемчужина',3200,'🦪'],
- ['Звёздный компас',3500,'🧭'],['Огненная птица',3800,'🦜'],['Космическая планета',4100,'🪐'],['Алмазная бабочка',4400,'🦋'],['Серебряный волк',4700,'🐺'],
- ['Золотой феникс',5000,'🔥'],['Ледяной кристалл',5400,'❄️'],['Королевский кубок',5800,'🏆'],['Рубиновый череп',6200,'💀'],['Сокровищница',6600,'💰'],
- ['Звёздный корабль',7000,'🚀'],['Драконье сердце',7500,'❤️‍🔥'],['Корона императора',8000,'👑'],['Галактический портал',9000,'🌀'],['Яйцо правителя',10000,'🌟'],
- ['Курица',450,'🐔'],['Свинтя',650,'🐷'],['Сарай',900,'🛖'],['Дрон FPV',2300,'🛸'],['Шахед',3300,'🛩️'],['Сармат',6900,'🚀'],['Орешник',8500,'☄️']
-].map((g,i)=>({id:i+1,name:g[0],price:g[1],emoji:g[2]}));
+ // Сохранённые коллекционные подарки: ID остаются неизменными для уже выданных экземпляров.
+ {id:1,name:'Золотое яйцо',price:500,emoji:'🥚',kind:'egg'},
+ {id:4,name:'Золотая корона',price:1000,emoji:'👑',kind:'crown'},
+ {id:28,name:'Корона императора',price:8000,emoji:'👑',kind:'crown'},
+ {id:31,name:'Курица',price:450,emoji:'🐔',kind:'farm'},
+ {id:32,name:'Свинец',price:650,emoji:'⚙️',kind:'farm'},
+ {id:33,name:'Сарай',price:900,emoji:'🛖',kind:'farm'},
+ {id:36,name:'Сармат',price:6900,emoji:'🚀',kind:'missile'},
+ {id:37,name:'Орешник',price:8500,emoji:'☄️',kind:'missile'},
+ {id:38,name:'Долгая',price:7200,emoji:'🚀',kind:'missile'},
+ {id:39,name:'Шахед-136',price:2600,emoji:'🛩️',kind:'drone'},
+ {id:40,name:'Шахед-238',price:3900,emoji:'🛩️',kind:'drone'},
+ {id:41,name:'Байрактар TB2',price:4200,emoji:'🛸',kind:'drone'},
+ {id:42,name:'Ланцет-3',price:3400,emoji:'🎯',kind:'drone'},
+ {id:43,name:'Герань-2',price:3100,emoji:'🛩️',kind:'drone'},
+ {id:44,name:'Калибр',price:5200,emoji:'🚀',kind:'missile'},
+ {id:45,name:'Кинжал',price:6300,emoji:'🚀',kind:'missile'},
+ {id:46,name:'Искандер-М',price:6700,emoji:'🚀',kind:'missile'},
+ {id:47,name:'Тополь-М',price:9200,emoji:'🚀',kind:'missile'},
+ {id:48,name:'Ярс',price:9500,emoji:'🚀',kind:'missile'},
+ {id:49,name:'Тор-М2',price:4700,emoji:'🛡️',kind:'airdefense'},
+ {id:50,name:'Панцирь-С1',price:5600,emoji:'🛡️',kind:'airdefense'},
+ {id:51,name:'С-300',price:5900,emoji:'🛡️',kind:'airdefense'},
+ {id:52,name:'С-400 Триумф',price:7600,emoji:'🛡️',kind:'airdefense'},
+ {id:53,name:'С-500 Прометей',price:9800,emoji:'🛡️',kind:'airdefense'},
+ {id:54,name:'ЗРК Бук-М3',price:4900,emoji:'🛡️',kind:'airdefense'},
+ {id:55,name:'РСЗО Град',price:3800,emoji:'💥',kind:'artillery'},
+ {id:56,name:'Т-90М Прорыв',price:4800,emoji:'🪖',kind:'vehicle'},
+ {id:57,name:'Су-57',price:7400,emoji:'✈️',kind:'aircraft'},
+ {id:58,name:'МиГ-31К',price:6100,emoji:'✈️',kind:'aircraft'},
+ {id:59,name:'Ка-52 Аллигатор',price:5800,emoji:'🚁',kind:'aircraft'},
+ {id:60,name:'M1A2 Abrams',price:5400,emoji:'🪖',kind:'vehicle'},
+ {id:61,name:'F-22 Raptor',price:8200,emoji:'✈️',kind:'aircraft'},
+ {id:62,name:'F-35 Lightning II',price:7900,emoji:'✈️',kind:'aircraft'},
+ {id:63,name:'B-2 Spirit',price:8800,emoji:'🛩️',kind:'aircraft'},
+ {id:64,name:'HIMARS',price:5200,emoji:'🚛',kind:'artillery'},
+ {id:65,name:'ATACMS',price:6400,emoji:'🚀',kind:'missile'},
+ {id:66,name:'Tomahawk',price:6800,emoji:'🚀',kind:'missile'},
+ {id:67,name:'Patriot PAC-3',price:8100,emoji:'🛡️',kind:'airdefense'},
+ {id:68,name:'THAAD',price:9000,emoji:'🛡️',kind:'airdefense'},
+ {id:69,name:'NASAMS',price:5700,emoji:'🛡️',kind:'airdefense'},
+ {id:70,name:'MQ-9 Reaper',price:6000,emoji:'🛸',kind:'drone'},
+ {id:71,name:'AH-64 Apache',price:6500,emoji:'🚁',kind:'aircraft'},
+ {id:72,name:'F-16 Fighting Falcon',price:5300,emoji:'✈️',kind:'aircraft'},
+ {id:73,name:'MIM-104 Patriot',price:7800,emoji:'🛡️',kind:'airdefense'},
+ {id:74,name:'Javelin',price:3500,emoji:'🎯',kind:'missile'},
+ {id:75,name:'Stinger',price:2900,emoji:'🎯',kind:'missile'},
+ {id:76,name:'B-52 Stratofortress',price:7200,emoji:'🛩️',kind:'aircraft'},
+ {id:77,name:'A-10 Thunderbolt II',price:5100,emoji:'✈️',kind:'aircraft'},
+ {id:78,name:'Leopard 2A7',price:5600,emoji:'🪖',kind:'vehicle'},
+ {id:79,name:'M777',price:3200,emoji:'💥',kind:'artillery'},
+ {id:80,name:'Switchblade 600',price:3600,emoji:'🛸',kind:'drone'},
+ {id:81,name:'Золотой трофей',price:6500,emoji:'🏆',kind:'trophy'}
+];
 const GIFT_PATTERNS = ['Звёзды','Волны','Мрамор','Руны','Кристаллы','Геометрия','Пламя','Градиент'];
 const GIFT_COLORS = ['Золото','Рубин','Сапфир','Изумруд','Аметист','Лёд','Розовый','Обсидиан'];
 const rollLook=()=>({pattern:GIFT_PATTERNS[crypto.randomInt(GIFT_PATTERNS.length)],color:GIFT_COLORS[crypto.randomInt(GIFT_COLORS.length)]});
-const GIFT_COLS='id,gift_id,level,pattern,color,listed_price';
-const giftRow=r=>({id:Number(r.id),gift_id:r.gift_id,level:r.level,pattern:r.pattern,color:r.color,listed_price:r.listed_price==null?null:Number(r.listed_price)});
+const GIFT_COLS='id,gift_id,level,pattern,color,listed_price,upgraded,unique_quality';
+const giftRow=r=>({id:Number(r.id),gift_id:r.gift_id,level:r.level,pattern:r.pattern,color:r.color,upgraded:!!r.upgraded,unique_quality:r.unique_quality||null,listed_price:r.listed_price==null?null:Number(r.listed_price)});
 // Подарок в чате — служебное сообщение, клиент рисует из него карточку: giftId:номер:цвет:узор:уровень
 const giftTag=r=>'[gift:'+r.gift_id+':'+r.id+':'+Math.max(0,GIFT_COLORS.indexOf(r.color))+':'+Math.max(0,GIFT_PATTERNS.indexOf(r.pattern))+':'+r.level+']';
 const giftName=id=>GIFT_CATALOG.find(x=>x.id===Number(id))?.name||'Подарок';
@@ -212,16 +259,19 @@ app.post('/api/gifts/upgrade', auth, async (req,res) => {
     await client.query('BEGIN');
     const g=await client.query('SELECT * FROM gift_inventory WHERE id=$1 AND username=$2 FOR UPDATE',[id,req.username]);
     if(!g.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Подарок не найден'});}
-    const old=g.rows[0],cost=Number(old.level)*750;
+    const old=g.rows[0],cost=750;
+    if(old.upgraded){await client.query('ROLLBACK');return res.status(409).json({error:'Этот подарок уже улучшен — улучшение возможно только один раз'});}
     if(old.listed_price!=null){await client.query('ROLLBACK');return res.status(409).json({error:'Сними подарок с продажи перед улучшением'});}
     const p=await client.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
     if(Number(p.rows[0].balance)<cost){await client.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц для улучшения ('+cost+')'});}
     const pattern=GIFT_PATTERNS[crypto.randomInt(GIFT_PATTERNS.length)],color=GIFT_COLORS[crypto.randomInt(GIFT_COLORS.length)];
-    const updated=await client.query('UPDATE gift_inventory SET level=level+1,pattern=$3,color=$4 WHERE id=$1 AND username=$2 RETURNING '+GIFT_COLS,[id,req.username,pattern,color]);
+    const qualities=['Экспериментальный образец','Редкая модификация','Коллекционное исполнение','Усиленная конструкция','Секретная серия','Прототип','Особая комплектация','Лимитированная версия'];
+    const quality=qualities[crypto.randomInt(qualities.length)];
+    const updated=await client.query('UPDATE gift_inventory SET upgraded=TRUE,unique_quality=$3,pattern=$4,color=$5 WHERE id=$1 AND username=$2 RETURNING '+GIFT_COLS,[id,req.username,quality,pattern,color]);
     await client.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,cost]);
     await client.query('COMMIT');
     res.json({gift:giftRow(updated.rows[0]),balance:Number(p.rows[0].balance)-cost,cost});
-  }catch(e){await client.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Улучшение не удалось'});}
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error(e.message);res.status(500).json({error:'Улучшение не удалось'});}
   finally{client.release();}
 });
 app.post('/api/gifts/equip', auth, async (req,res) => {
@@ -504,6 +554,11 @@ app.post('/api/stars/grant', auth, async (req,res) => {
   finally{c.release();}
 });
 
+app.get('/api/stars/users', auth, async (req,res) => {
+  if(req.username.toLowerCase()!=='alex')return res.status(403).json({error:'Список доступен только Alex'});
+  try{const r=await pool.query("SELECT username FROM users WHERE username<>'pal_laich' ORDER BY username");res.json({users:r.rows.map(x=>x.username)});}
+  catch(e){console.error(e.message);res.status(500).json({error:'Не удалось загрузить список пользователей'});}
+});
 app.get('/api/settings', auth, async (_req,res) => {
   try{const r=await pool.query("SELECT key,value FROM app_settings WHERE key IN ('bot_avatar','chat_background')");const out={};for(const x of r.rows)out[x.key]=x.value;res.json(out);}
   catch(e){console.error(e.message);res.status(500).json({error:'Не удалось загрузить настройки'});}
