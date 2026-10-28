@@ -215,7 +215,7 @@ const hm=t=>new Date(Number(t)).toLocaleTimeString('ru',{hour:'2-digit',minute:'
 const dk=t=>{const d=new Date(Number(t));return d.toDateString()===new Date().toDateString()?'Сегодня':d.toLocaleDateString('ru',{day:'numeric',month:'long'})};
 const ic=(n,c='')=>'<svg class="ic '+c+'"><use href="#i-'+n+'"/></svg>';
 const vf=n=>String(n).toLowerCase()==='alex'?'<span class="vf" title="Подтверждённый пользователь">'+ic('egg')+'</span>':'';
-const IMG=/^\[img:(\d+)(?::(\d+)x(\d+))?\]$/;
+const IMG=/^\[img:(\d+)(?::(\d+)x(\d+))?\]$/,VOICE=/^\[voice:(\d+):(\d+)\]$/;
 const last=n=>(S.cache[n]||[]).at(-1);
 const disp=n=>n==='pal_laich'?'Боб Пал Лаич':n;
 const prev=m=>IMG.test(m.x)||m.local?'Фото':m.x;
@@ -394,11 +394,11 @@ async function paintChat(){
   const m=$('#main');
   if(!S.cur){m.innerHTML='<div class="em">Выберите чат, чтобы начать общение</div>';return}
   const n=S.cur,g=n===GROUP,t=g?GT:n===S.me?'Избранное':n;
-  m.innerHTML='<header class="ch"><button class="ib2 back" id="bk" aria-label="Назад">'+ic('back')+'</button>'+av(n)+'<div class="t" data-profile="'+(g||n===S.me?'':esc(n))+'" style="'+(g||n===S.me?'':'cursor:pointer')+'"><b>'+esc(t)+vf(n)+'</b><small>'+(g?S.users.length+' участников':n===S.me?'Личные заметки':'@'+esc(n)+' · открыть профиль')+'</small></div><button class="ib2" id="inf" aria-label="Информация">'+ic('info')+'</button></header><div class="msgs" id="ms"></div><form class="cm" id="cf"><button type="button" class="ib2" id="at" aria-label="Отправить фото">'+ic('image')+'</button><input type="file" id="fi" accept="image/*" multiple hidden><textarea id="msg" rows="1" placeholder="Сообщение" enterkeyhint="send"></textarea><button class="snd" id="sd" aria-label="Отправить">'+ic('send')+'</button></form>';
+  m.innerHTML='<header class="ch"><button class="ib2 back" id="bk" aria-label="Назад">'+ic('back')+'</button>'+av(n)+'<div class="t" data-profile="'+(g||n===S.me?'':esc(n))+'" style="'+(g||n===S.me?'':'cursor:pointer')+'"><b>'+esc(t)+vf(n)+'</b><small>'+(g?S.users.length+' участников':n===S.me?'Личные заметки':'@'+esc(n)+' · открыть профиль')+'</small></div><button class="ib2" id="inf" aria-label="Информация">'+ic('info')+'</button></header><div class="msgs" id="ms"></div><form class="cm" id="cf"><button type="button" class="ib2" id="at" aria-label="Отправить фото">'+ic('image')+'</button><input type="file" id="fi" accept="image/*" multiple hidden><button type="button" class="ib2" id="vr" aria-label="Записать голосовое">'+ic('mic')+'</button><textarea id="msg" rows="1" placeholder="Сообщение" enterkeyhint="send"></textarea><button class="snd" id="sd" aria-label="Отправить">'+ic('send')+'</button></form>';
   $('#bk').onclick=()=>{S.cur=null;setShell();paintSide();paintChat()};
   const profBtn=m.querySelector('[data-profile]');if(profBtn?.dataset.profile)profBtn.onclick=()=>{S.profileTarget=profBtn.dataset.profile;S.tab='profile';setShell();paint();};
   $('#inf').onclick=()=>{S.info=!S.info;setShell()};
-  $('#at').onclick=()=>$('#fi').click();
+  $('#at').onclick=()=>$('#fi').click();$('#vr').onclick=toggleVoiceRecording;
   $('#fi').onchange=e=>{[...e.target.files].forEach(sendImage);e.target.value=''};
   const ta=$('#msg');ta.oninput=autosize;
   ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&matchMedia('(hover:hover)').matches){e.preventDefault();send()}};
