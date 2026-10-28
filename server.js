@@ -20,6 +20,7 @@ const pool = new Pool({
 });
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '2mb' }));
+require('./push')(app, pool, auth);
 
 function sign(username) {
   const payload = Buffer.from(JSON.stringify({ username, exp: Date.now() + 30 * 86400000 })).toString('base64url');
@@ -411,26 +412,7 @@ app.post('/api/gifts/buy-for', auth, async (req,res) => {
 });
 
 // ФабрMoney: результат и списание ставки рассчитываются на сервере.
-app.post('/api/fabrlmoney/spin', auth, async (req,res) => {
-  const bet=Number(req.body?.bet);
-  if(!Number.isSafeInteger(bet)||bet<10||bet>10000)return res.status(400).json({error:'Ставка должна быть от 10 до 10 000 золотых яиц'});
-  const c=await pool.connect();
-  try{
-    await c.query('BEGIN');
-    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[req.username]);
-    const p=await c.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
-    const balance=Number(p.rows[0].balance);
-    if(balance<bet){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц для ставки'});}
-    const symbols=['🥚','💎','👑','🍀','🔥','⭐'];
-    const reels=Array.from({length:3},()=>symbols[crypto.randomInt(symbols.length)]);
-    const same=reels[0]===reels[1]&&reels[1]===reels[2],pair=!same&&(reels[0]===reels[1]||reels[1]===reels[2]||reels[0]===reels[2]);
-    const payout=same?bet*5:pair?Math.floor(bet*1.5):0,next=balance-bet+payout;
-    await c.query('UPDATE profiles SET balance=$2,updated_at=NOW() WHERE username=$1',[req.username,next]);
-    await c.query('COMMIT');
-    res.json({symbols:reels,balance:next,payout,message:same?'ДЖЕКПОТ! Выигрыш '+payout+' 🥚':pair?'Две совпали! Выплата '+payout+' 🥚':'Не повезло — ставка потеряна ('+bet+' 🥚)'});
-  }catch(e){await c.query('ROLLBACK');console.error('FabrlMoney spin:',e.message);res.status(500).json({error:'Не удалось прокрутить слоты'});}
-  finally{c.release();}
-});
+require('./casino')(app, pool, auth); // слоты v2 + ежедневный бонус
 // Выдача золотых яиц доступна только аккаунту Alex.
 app.post('/api/stars/grant', auth, async (req,res) => {
   if(req.username.toLowerCase()!=='alex')return res.status(403).json({error:'Выдавать золотые яйца может только Alex'});
@@ -462,6 +444,7 @@ app.put('/api/settings', auth, async (req,res) => {
 });
 
 require('./images')(app, pool, auth);
+require('./voice')(app, pool, auth);
 app.get('/', (_req, res) => res.send('ФабрLink API is running. Open /api/health to check the database connection.'));
 initDb().then(() => {
   app.listen(PORT, '0.0.0.0', () => console.log('ФабрLink API listening on port ' + PORT));

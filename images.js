@@ -31,6 +31,7 @@ module.exports = function (app, pool, auth) {
       const r = await pool.query(
         'INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3) RETURNING id,sender AS f,body AS x,(EXTRACT(EPOCH FROM created_at)*1000)::bigint AS t',
         [room, req.username, '[img:' + img.rows[0].id + dim + ']']);
+      if (app.locals.notify) app.locals.notify(room, req.username, 'Фото');
       res.status(201).json({ message: r.rows[0] });
     } catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось отправить фото' }); }
   });
