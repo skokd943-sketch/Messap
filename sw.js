@@ -1,4 +1,4 @@
-const CACHE='fabrlink-v19',FILES=['./','./index.html','./minigame.html','./manifest.json','./2341F654-35F3-4085-8DDD-522F7929D582.png'];
+const CACHE='fabrlink-v18',FILES=['./','./index.html','./minigame.html','./manifest.json','./2341F654-35F3-4085-8DDD-522F7929D582.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).catch(()=>{}));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))));self.clients.claim()});
 // Кэшируем только файлы самого сайта. Запросы к API (messap.onrender.com) не трогаем.
