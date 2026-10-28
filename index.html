@@ -430,7 +430,7 @@ function autosize(){const t=$('#msg');if(!t)return;t.style.height='auto';t.style
 const voiceUrls={};
 const fmtDuration=n=>{n=Math.max(0,Math.floor(Number(n)||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')};
 async function loadVoice(id){if(voiceUrls[id])return voiceUrls[id];const r=await fetch(API+'/api/voice/'+id,{headers:{Authorization:'Bearer '+S.token}});if(!r.ok)throw new Error('Не удалось загрузить голосовое');const u=URL.createObjectURL(await r.blob());voiceUrls[id]=u;return u}
-async function playVoice(id,button){const wrap=button.closest('.voice-msg'),audio=wrap.querySelector('audio');try{if(!audio.src)audio.src=await loadVoice(id);if(audio.paused){document.querySelectorAll('.voice-msg audio').forEach(a=>{if(a!==audio)a.pause()});await audio.play();button.innerHTML='Ⅱ'}else{audio.pause();button.innerHTML=ic('play')}}catch(e){toast(e.message)}}
+async function playVoice(id,button){const wrap=button.closest('.voice-msg'),audio=wrap.querySelector('audio');try{if(!audio.src)audio.src=await loadVoice(id);if(audio.paused){document.querySelectorAll('.voice-msg audio').forEach(a=>{if(a!==audio)a.pause()});await audio.play();button.innerHTML='Ⅱ'}else{audio.pause();button.innerHTML='▶'}}catch(e){toast(e.message)}}
 let voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStarted=0,voiceBusy=false;
 async function toggleVoiceRecording(){
  const b=$('#vr');if(!b||voiceBusy)return;
@@ -459,7 +459,7 @@ async function toggleVoiceRecording(){
   voiceRecorder.start(250);
  }catch(e){cleanupVoice();toast(e.name==='NotAllowedError'?'Разреши доступ к микрофону в настройках браузера':e.message||'Не удалось включить микрофон')}
 }
-function cleanupVoice(){voiceStream?.getTracks().forEach(t=>t.stop());voiceStream=null;voiceRecorder=null;voiceChunks=[];const b=$('#vr');if(b){b.classList.remove('recording');b.innerHTML=ic('mic');b.setAttribute('aria-label','Записать голосовое')}}
+function cleanupVoice(){voiceStream?.getTracks().forEach(t=>t.stop());voiceStream=null;voiceRecorder=null;voiceChunks=[];const b=$('#vr');if(b){b.classList.remove('recording');b.innerHTML='🎙';b.setAttribute('aria-label','Записать голосовое')}}
 
 async function send(){
   const ta=$('#msg');if(!ta||!S.cur)return;
