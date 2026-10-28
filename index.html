@@ -80,7 +80,7 @@ h1,h2,h3,p{margin:0}
 .cm{display:flex;gap:8px;align-items:flex-end;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#0a113088}
 .cm textarea{flex:1;resize:none;max-height:120px;padding:11px 16px;border-radius:22px;background:var(--in);border:1px solid var(--line);line-height:1.35}
 .cm .ib2{width:44px;height:44px;border-radius:50%;background:var(--in);color:var(--mut)}
-.cm .snd{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#2f8cff,#4a5dff);display:grid;place-items:center;flex:none;color:#fff}
+.cm #vr.recording{background:#e94b67;color:#fff}.voice-msg{display:flex;align-items:center;gap:9px;min-width:min(230px,60vw);padding:5px 2px}.voice-msg button{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#ffffff20;flex:none}.voice-msg audio{display:none}.voice-msg .vline{height:4px;flex:1;min-width:38px;border-radius:5px;background:#ffffff40}.voice-msg .vline span{display:block;height:100%;width:0;background:#fff;border-radius:5px}.voice-msg small{font-size:11px;opacity:.85;min-width:30px}.cm .snd{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#2f8cff,#4a5dff);display:grid;place-items:center;flex:none;color:#fff}
 .em{margin:auto;padding:24px;text-align:center;color:var(--mut)}
 .info{display:none;position:absolute;top:0;right:0;bottom:0;width:min(320px,100%);z-index:5;flex-direction:column;background:linear-gradient(165deg,#111b45f2,#0a1130fa);border-left:1px solid var(--line)}
 .shell.info-on.in-chat .info{display:flex}
@@ -418,15 +418,49 @@ async function paintChat(){
     if(e.target.closest('[data-msgact]'))return;
     document.querySelectorAll('.bub.msg-menu-open').forEach(x=>x.classList.remove('msg-menu-open'));
   });
-  $('#ms').onclick=async e=>{const img=e.target.closest('img.ph.ok');if(img){openLb(img.src);return}const a=e.target.closest('[data-msgact]');if(!a)return;const m=(S.cache[S.cur]||[]).find(x=>String(x.id)===a.dataset.id);if(!m)return;if(a.dataset.msgact==='copy'){try{await navigator.clipboard.writeText(m.x);toast('Скопировано')}catch{toast('Не удалось скопировать')}return}if(a.dataset.msgact==='reply'){S.reply=m;$('#replybar')?.remove();const bar=document.createElement('div');bar.id='replybar';bar.className='reply-preview';bar.textContent='Ответ: '+m.f+' — '+m.x.slice(0,100);$('#cf').before(bar);$('#msg').focus();return}if(a.dataset.msgact==='forward'){const target=prompt('Ник получателя');if(!target)return;try{await api('/api/messages',{method:'POST',body:JSON.stringify({peer:target.trim().replace(/^@/,'').toLowerCase(),body:m.x,forwardedFrom:m.f})});toast('Переслано')}catch(err){toast(err.message)}}};
+  $('#ms').onclick=async e=>{const img=e.target.closest('img.ph.ok');if(img){openLb(img.src);return}const vp=e.target.closest('[data-voiceplay]');if(vp){playVoice(vp.dataset.voiceplay,vp);return}const a=e.target.closest('[data-msgact]');if(!a)return;const m=(S.cache[S.cur]||[]).find(x=>String(x.id)===a.dataset.id);if(!m)return;if(a.dataset.msgact==='copy'){try{await navigator.clipboard.writeText(m.x);toast('Скопировано')}catch{toast('Не удалось скопировать')}return}if(a.dataset.msgact==='reply'){S.reply=m;$('#replybar')?.remove();const bar=document.createElement('div');bar.id='replybar';bar.className='reply-preview';bar.textContent='Ответ: '+m.f+' — '+m.x.slice(0,100);$('#cf').before(bar);$('#msg').focus();return}if(a.dataset.msgact==='forward'){const target=prompt('Ник получателя');if(!target)return;try{await api('/api/messages',{method:'POST',body:JSON.stringify({peer:target.trim().replace(/^@/,'').toLowerCase(),body:m.x,forwardedFrom:m.f})});toast('Переслано')}catch(err){toast(err.message)}}};
   drawMsgs(true);paintInfo();
   if(!S.cache[n]){
     try{await thread(n)}catch(e){if(S.cur===n&&$('#ms'))$('#ms').innerHTML='<div class="em">'+esc(e.message)+'</div>';return}
     if(S.cur!==n||S.tab!=='chats')return;drawMsgs(true);paintSide();paintInfo()
   }
 }
-function drawMsgs(force){const box=$('#ms');if(!box||!S.cur)return;const items=S.cache[S.cur];if(!items){box.innerHTML='<div class="em">Загрузка…</div>';return}const near=box.scrollHeight-box.scrollTop-box.clientHeight<120,g=S.cur===GROUP;let h='',d='';for(const m of items){const k=dk(m.t);if(k!==d){d=k;h+='<div class="day">'+k+'</div>'}const me=m.f===S.me,x=IMG.exec(m.x),nm=g&&!me?'<span class="nm">'+esc(disp(m.f))+'</span>':'',rp=m.reply_x?'<div class="reply-preview">↪ '+esc(m.reply_f||'')+': '+esc(m.reply_x)+'</div>':m.forwarded_from?'<div class="reply-preview">Переслано от @'+esc(m.forwarded_from)+'</div>':'',tools='<div class="msg-tools"><button data-msgact="reply" data-id="'+esc(m.id)+'">Ответить</button><button data-msgact="forward" data-id="'+esc(m.id)+'">Переслать</button><button data-msgact="copy" data-id="'+esc(m.id)+'">Копировать</button></div>';if(x)h+='<div class="bub'+(me?' me':'')+'">'+nm+rp+'<img class="ph" data-img="'+x[1]+'" alt=""><time>'+hm(m.t)+'</time>'+tools+'</div>';else h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+rp+esc(m.x)+'<time>'+hm(m.t)+(m.p?ic('clock'):'')+'</time>'+tools+'</div>'}box.innerHTML=h||'<div class="em">Напишите первое сообщение</div>';lazyImgs(box);if(force||near)box.scrollTop=box.scrollHeight}
+function drawMsgs(force){const box=$('#ms');if(!box||!S.cur)return;const items=S.cache[S.cur];if(!items){box.innerHTML='<div class="em">Загрузка…</div>';return}const near=box.scrollHeight-box.scrollTop-box.clientHeight<120,g=S.cur===GROUP;let h='',d='';for(const m of items){const k=dk(m.t);if(k!==d){d=k;h+='<div class="day">'+k+'</div>'}const me=m.f===S.me,x=IMG.exec(m.x),v=VOICE.exec(m.x),nm=g&&!me?'<span class="nm">'+esc(disp(m.f))+'</span>':'',rp=m.reply_x?'<div class="reply-preview">↪ '+esc(m.reply_f||'')+': '+esc(m.reply_x)+'</div>':m.forwarded_from?'<div class="reply-preview">Переслано от @'+esc(m.forwarded_from)+'</div>':'',tools='<div class="msg-tools"><button data-msgact="reply" data-id="'+esc(m.id)+'">Ответить</button><button data-msgact="forward" data-id="'+esc(m.id)+'">Переслать</button><button data-msgact="copy" data-id="'+esc(m.id)+'">Копировать</button></div>';if(x)h+='<div class="bub'+(me?' me':'')+'">'+nm+rp+'<img class="ph" data-img="'+x[1]+'" alt=""><time>'+hm(m.t)+'</time>'+tools+'</div>';else if(v)h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+rp+'<div class="voice-msg"><button type="button" data-voiceplay="'+v[1]+'" aria-label="Прослушать">'+ic('play')+'</button><div class="vline"><span></span></div><small>'+fmtDuration(v[2])+'</small><audio preload="none"></audio></div><time>'+hm(m.t)+'</time>'+tools+'</div>';else h+='<div class="bub'+(me?' me':'')+(m.p?' pend':'')+'">'+nm+rp+esc(m.x)+'<time>'+hm(m.t)+(m.p?ic('clock'):'')+'</time>'+tools+'</div>}box.innerHTML=h||'<div class="em">Напишите первое сообщение</div>';lazyImgs(box);if(force||near)box.scrollTop=box.scrollHeight}
 function autosize(){const t=$('#msg');if(!t)return;t.style.height='auto';t.style.height=Math.min(t.scrollHeight,120)+'px'}
+const voiceUrls={};
+const fmtDuration=n=>{n=Math.max(0,Math.floor(Number(n)||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')};
+async function loadVoice(id){if(voiceUrls[id])return voiceUrls[id];const r=await fetch(API+'/api/voice/'+id,{headers:{Authorization:'Bearer '+S.token}});if(!r.ok)throw new Error('Не удалось загрузить голосовое');const u=URL.createObjectURL(await r.blob());voiceUrls[id]=u;return u}
+async function playVoice(id,button){const wrap=button.closest('.voice-msg'),audio=wrap.querySelector('audio');try{if(!audio.src)audio.src=await loadVoice(id);if(audio.paused){document.querySelectorAll('.voice-msg audio').forEach(a=>{if(a!==audio)a.pause()});await audio.play();button.innerHTML=ic('pause')}else{audio.pause();button.innerHTML=ic('play')}}catch(e){toast(e.message)}}
+let voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStarted=0,voiceBusy=false;
+async function toggleVoiceRecording(){
+ const b=$('#vr');if(!b||voiceBusy)return;
+ if(voiceRecorder&&voiceRecorder.state==='recording'){voiceRecorder.stop();return}
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('Запись голоса не поддерживается этим браузером');return}
+ try{
+  voiceStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'];
+  const mime=types.find(t=>MediaRecorder.isTypeSupported?.(t));
+  voiceChunks=[];voiceRecorder=mime?new MediaRecorder(voiceStream,{mimeType:mime}):new MediaRecorder(voiceStream);
+  voiceStarted=Date.now();b.classList.add('recording');b.innerHTML=ic('square');b.setAttribute('aria-label','Остановить запись');toast('Запись идёт… нажми ■ для отправки');
+  voiceRecorder.ondataavailable=e=>{if(e.data?.size)voiceChunks.push(e.data)};
+  voiceRecorder.onerror=()=>{cleanupVoice();toast('Ошибка записи голоса')};
+  voiceRecorder.onstop=async()=>{
+   const duration=Math.round((Date.now()-voiceStarted)/1000),blob=new Blob(voiceChunks,{type:voiceRecorder.mimeType||'audio/webm'});cleanupVoice();
+   if(duration<1||!blob.size){toast('Запись слишком короткая');return}
+   if(blob.size>5*1024*1024){toast('Голосовое больше 5 МБ');return}
+   voiceBusy=true;
+   try{
+    const data=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=()=>reject(new Error('Не удалось обработать аудио'));fr.readAsDataURL(blob)});
+    const peer=S.cur;if(!peer)throw new Error('Сначала открой чат');
+    const d=await api('/api/voice',{method:'POST',body:JSON.stringify({peer,audio:data,duration})});
+    (S.cache[peer]=S.cache[peer]||[]).push(d.message);if(S.cur===peer)drawMsgs(true);paintSide();paintInfo();toast('Голосовое отправлено');
+   }catch(e){toast(e.message)}finally{voiceBusy=false}
+  };
+  voiceRecorder.start(250);
+ }catch(e){cleanupVoice();toast(e.name==='NotAllowedError'?'Разреши доступ к микрофону в настройках браузера':e.message||'Не удалось включить микрофон')}
+}
+function cleanupVoice(){voiceStream?.getTracks().forEach(t=>t.stop());voiceStream=null;voiceRecorder=null;voiceChunks=[];const b=$('#vr');if(b){b.classList.remove('recording');b.innerHTML=ic('mic');b.setAttribute('aria-label','Записать голосовое')}}
+
 async function send(){
   const ta=$('#msg');if(!ta||!S.cur)return;
   const body=ta.value.trim();if(!body)return;const replyTo=S.reply;
