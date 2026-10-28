@@ -57,8 +57,8 @@ module.exports = function (app, pool, auth) {
         const payload = JSON.stringify({ title, body, peer: peerFor(s.username), tag: 'chat-' + peerFor(s.username) });
         try { await webpush.sendNotification(s.sub, payload, { TTL: 3600, urgency: 'high' }); }
         catch (e) {
-          if (e.statusCode === 404 || e.statusCode === 410) await pool.query('DELETE FROM push_subs WHERE endpoint=$1', [s.endpoint]).catch(() => {});
-          else console.error('push send:', e.statusCode || e.message);
+          if ([401, 403, 404, 410].includes(e.statusCode)) await pool.query('DELETE FROM push_subs WHERE endpoint=$1', [s.endpoint]).catch(() => {});
+          else console.error('push send:', e.statusCode || e.message, e.body || '');
         }
       }));
     } catch (e) { console.error('notify:', e.message); }

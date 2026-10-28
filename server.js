@@ -106,6 +106,8 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS call_signals_call_id_idx ON call_signals(call_id,id);
+    ALTER TABLE gift_inventory ADD COLUMN IF NOT EXISTS listed_price BIGINT CHECK (listed_price IS NULL OR listed_price > 0);
+    CREATE INDEX IF NOT EXISTS gift_inventory_listed_idx ON gift_inventory(listed_price) WHERE listed_price IS NOT NULL;
 
   `);
   const botHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
@@ -165,18 +167,26 @@ const GIFT_CATALOG = [
  ['Лунная маска',2400,'🎭'],['Метеорит',2600,'☄️'],['Королевский щит',2800,'🛡️'],['Магический гриб',3000,'🍄'],['Жемчужина',3200,'🦪'],
  ['Звёздный компас',3500,'🧭'],['Огненная птица',3800,'🦜'],['Космическая планета',4100,'🪐'],['Алмазная бабочка',4400,'🦋'],['Серебряный волк',4700,'🐺'],
  ['Золотой феникс',5000,'🔥'],['Ледяной кристалл',5400,'❄️'],['Королевский кубок',5800,'🏆'],['Рубиновый череп',6200,'💀'],['Сокровищница',6600,'💰'],
- ['Звёздный корабль',7000,'🚀'],['Драконье сердце',7500,'❤️‍🔥'],['Корона императора',8000,'👑'],['Галактический портал',9000,'🌀'],['Яйцо правителя',10000,'🌟']
+ ['Звёздный корабль',7000,'🚀'],['Драконье сердце',7500,'❤️‍🔥'],['Корона императора',8000,'👑'],['Галактический портал',9000,'🌀'],['Яйцо правителя',10000,'🌟'],
+ ['Курица',450,'🐔'],['Свинтя',650,'🐷'],['Сарай',900,'🛖'],['Дрон FPV',2300,'🛸'],['Шахед',3300,'🛩️'],['Сармат',6900,'🚀'],['Орешник',8500,'☄️']
 ].map((g,i)=>({id:i+1,name:g[0],price:g[1],emoji:g[2]}));
 const GIFT_PATTERNS = ['Звёзды','Волны','Мрамор','Руны','Кристаллы','Геометрия','Пламя','Градиент'];
 const GIFT_COLORS = ['Золото','Рубин','Сапфир','Изумруд','Аметист','Лёд','Розовый','Обсидиан'];
+const rollLook=()=>({pattern:GIFT_PATTERNS[crypto.randomInt(GIFT_PATTERNS.length)],color:GIFT_COLORS[crypto.randomInt(GIFT_COLORS.length)]});
+const GIFT_COLS='id,gift_id,level,pattern,color,listed_price';
+const giftRow=r=>({id:Number(r.id),gift_id:r.gift_id,level:r.level,pattern:r.pattern,color:r.color,listed_price:r.listed_price==null?null:Number(r.listed_price)});
+// Подарок в чате — служебное сообщение, клиент рисует из него карточку: giftId:номер:цвет:узор:уровень
+const giftTag=r=>'[gift:'+r.gift_id+':'+r.id+':'+Math.max(0,GIFT_COLORS.indexOf(r.color))+':'+Math.max(0,GIFT_PATTERNS.indexOf(r.pattern))+':'+r.level+']';
+const giftName=id=>GIFT_CATALOG.find(x=>x.id===Number(id))?.name||'Подарок';
+const pushNotify=(room,from,text)=>{try{if(app.locals.notify)app.locals.notify(room,from,text)}catch{}};
 app.get('/api/gifts', auth, async (req,res) => {
   try {
     await pool.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[req.username]);
     const [p,inv] = await Promise.all([
       pool.query('SELECT balance,avatar_data,equipped_gifts FROM profiles WHERE username=$1',[req.username]),
-      pool.query('SELECT id,gift_id,level,pattern,color FROM gift_inventory WHERE username=$1 ORDER BY id DESC',[req.username])
+      pool.query('SELECT '+GIFT_COLS+' FROM gift_inventory WHERE username=$1 ORDER BY id DESC',[req.username])
     ]);
-    res.json({balance:Number(p.rows[0].balance),avatar:p.rows[0].avatar_data,equipped:p.rows[0].equipped_gifts||[],catalog:GIFT_CATALOG,inventory:inv.rows});
+    res.json({balance:Number(p.rows[0].balance),avatar:p.rows[0].avatar_data,equipped:p.rows[0].equipped_gifts||[],catalog:GIFT_CATALOG,inventory:inv.rows.map(giftRow)});
   } catch(e){ console.error(e.message); res.status(500).json({error:'Не удалось загрузить подарки'}); }
 });
 app.post('/api/gifts/buy', auth, async (req,res) => {
@@ -189,9 +199,10 @@ app.post('/api/gifts/buy', auth, async (req,res) => {
     const p=await client.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
     if(Number(p.rows[0].balance)<gift.price){await client.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц'});}
     await client.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,gift.price]);
-    const g=await client.query('INSERT INTO gift_inventory(username,gift_id) VALUES($1,$2) RETURNING id,gift_id,level,pattern,color',[req.username,gift.id]);
+    const look=rollLook();
+    const g=await client.query('INSERT INTO gift_inventory(username,gift_id,pattern,color) VALUES($1,$2,$3,$4) RETURNING '+GIFT_COLS,[req.username,gift.id,look.pattern,look.color]);
     await client.query('COMMIT');
-    res.status(201).json({gift:g.rows[0],balance:Number(p.rows[0].balance)-gift.price});
+    res.status(201).json({gift:giftRow(g.rows[0]),balance:Number(p.rows[0].balance)-gift.price});
   } catch(e){await client.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Покупка не удалась'});}
   finally{client.release();}
 });
@@ -202,13 +213,14 @@ app.post('/api/gifts/upgrade', auth, async (req,res) => {
     const g=await client.query('SELECT * FROM gift_inventory WHERE id=$1 AND username=$2 FOR UPDATE',[id,req.username]);
     if(!g.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Подарок не найден'});}
     const old=g.rows[0],cost=Number(old.level)*750;
+    if(old.listed_price!=null){await client.query('ROLLBACK');return res.status(409).json({error:'Сними подарок с продажи перед улучшением'});}
     const p=await client.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
     if(Number(p.rows[0].balance)<cost){await client.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц для улучшения ('+cost+')'});}
     const pattern=GIFT_PATTERNS[crypto.randomInt(GIFT_PATTERNS.length)],color=GIFT_COLORS[crypto.randomInt(GIFT_COLORS.length)];
-    const updated=await client.query('UPDATE gift_inventory SET level=level+1,pattern=$3,color=$4 WHERE id=$1 AND username=$2 RETURNING id,gift_id,level,pattern,color',[id,req.username,pattern,color]);
+    const updated=await client.query('UPDATE gift_inventory SET level=level+1,pattern=$3,color=$4 WHERE id=$1 AND username=$2 RETURNING '+GIFT_COLS,[id,req.username,pattern,color]);
     await client.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,cost]);
     await client.query('COMMIT');
-    res.json({gift:updated.rows[0],balance:Number(p.rows[0].balance)-cost,cost});
+    res.json({gift:giftRow(updated.rows[0]),balance:Number(p.rows[0].balance)-cost,cost});
   }catch(e){await client.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Улучшение не удалось'});}
   finally{client.release();}
 });
@@ -225,7 +237,7 @@ app.post('/api/gifts/equip', auth, async (req,res) => {
   }catch(e){console.error(e.message);res.status(500).json({error:'Не удалось изменить витрину профиля'});}
 });
 
-app.post('/api/presence/ping',auth,async(req,res)=>{try{await pool.query('UPDATE users SET last_seen_at=NOW() WHERE username=$1',[req.username]);res.json({ok:true})}catch(e){res.status(500).json({error:'Не удалось обновить статус'})}});
+app.post('/api/presence/ping',auth,async(req,res)=>{try{await pool.query(req.body?.away?"UPDATE users SET last_seen_at=NOW()-INTERVAL '60 seconds' WHERE username=$1":'UPDATE users SET last_seen_at=NOW() WHERE username=$1',[req.username]);res.json({ok:true})}catch(e){res.status(500).json({error:'Не удалось обновить статус'})}});
 app.get('/api/users', auth, async (_req, res) => {
   try { const r = await pool.query("SELECT u.username, u.created_at, u.last_seen_at, p.avatar_data, p.equipped_gifts FROM users u LEFT JOIN profiles p ON p.username=u.username WHERE u.username <> 'pal_laich' ORDER BY u.username"); res.json({ users: r.rows }); }
   catch (e) { console.error(e.message); res.status(500).json({ error: 'Не удалось загрузить пользователей' }); }
@@ -308,6 +320,7 @@ app.post('/api/calls', auth, async (req, res) => {
     const active=await pool.query("SELECT id FROM calls WHERE status IN ('ringing','accepted') AND (caller=$1 OR callee=$1) LIMIT 1",[req.username]);
     if(active.rowCount)return res.status(409).json({error:'Сначала завершите текущий звонок'});
     const r=await pool.query("INSERT INTO calls(caller,callee,kind) VALUES($1,$2,$3) RETURNING id,caller,callee,kind,status,created_at",[req.username,callee,kind]);
+    pushNotify([req.username,callee].sort().join('|'),req.username,kind==='video'?'📹 Видеозвонок':'📞 Входящий звонок');
     res.status(201).json({call:r.rows[0]});
   } catch(e){console.error('Create call:',e.message);res.status(500).json({error:'Не удалось начать звонок'});}
 });
@@ -369,33 +382,43 @@ app.get('/api/profile/:username', auth, async (req,res) => {
   try {
     const p=await pool.query('SELECT u.username,p.balance,p.avatar_data,p.equipped_gifts FROM users u LEFT JOIN profiles p ON p.username=u.username WHERE u.username=$1',[username]);
     if(!p.rowCount) return res.status(404).json({error:'Пользователь не найден'});
-    const inv=await pool.query('SELECT id,gift_id,level,pattern,color FROM gift_inventory WHERE username=$1 ORDER BY id DESC',[username]);
-    res.json({username,balance:Number(p.rows[0].balance||0),avatar:p.rows[0].avatar_data,equipped:p.rows[0].equipped_gifts||[],inventory:inv.rows,catalog:GIFT_CATALOG});
+    const inv=await pool.query('SELECT '+GIFT_COLS+' FROM gift_inventory WHERE username=$1 ORDER BY id DESC',[username]);
+    res.json({username,balance:Number(p.rows[0].balance||0),avatar:p.rows[0].avatar_data,equipped:p.rows[0].equipped_gifts||[],inventory:inv.rows.map(giftRow),catalog:GIFT_CATALOG});
   } catch(e){console.error(e.message);res.status(500).json({error:'Не удалось открыть профиль'});}
 });
+const NICK_RE=/^[a-z0-9_]{3,20}$/;
+const cleanNick=v=>String(v||'').trim().replace(/^@/,'').toLowerCase();
+// Передать свой подарок другому: подарок переезжает к получателю, в чате появляется карточка.
 app.post('/api/gifts/send-own', auth, async (req,res) => {
-  const target=String(req.body?.target||'').toLowerCase(),id=Number(req.body?.inventoryId);
-  if(!/^[a-z0-9_]{3,20}$/.test(target)||target===req.username||target==='pal_laich') return res.status(400).json({error:'Нельзя отправить подарок этому пользователю'});
+  const target=cleanNick(req.body?.target),id=Number(req.body?.inventoryId);
+  if(!NICK_RE.test(target)||target===req.username||target==='pal_laich') return res.status(400).json({error:'Нельзя отправить подарок этому пользователю'});
+  if(!Number.isSafeInteger(id)) return res.status(400).json({error:'Подарок не найден'});
   const c=await pool.connect();
+  let room,row;
   try{
     await c.query('BEGIN');
     const exists=await c.query('SELECT 1 FROM users WHERE username=$1',[target]);
     if(!exists.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Пользователь не найден'});}
-    const g=await c.query('UPDATE gift_inventory SET username=$3 WHERE id=$1 AND username=$2 RETURNING id,gift_id,level,pattern,color',[id,req.username,target]);
+    const g=await c.query('UPDATE gift_inventory SET username=$3,listed_price=NULL WHERE id=$1 AND username=$2 RETURNING '+GIFT_COLS,[id,req.username,target]);
     if(!g.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Подарок не найден в твоём инвентаре'});}
-    await c.query("UPDATE profiles SET equipped_gifts='[]'::jsonb,updated_at=NOW() WHERE username=$1 AND equipped_gifts @> $2::jsonb",[req.username,JSON.stringify([id])]);
-    const giftInfo=GIFT_CATALOG.find(x=>x.id===Number(g.rows[0].gift_id));
-    const room=[req.username,target].sort().join('|');
-    await c.query('INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3)',[room,req.username,'🎁 отправил(а) подарок: '+(giftInfo?.name||'Подарок')]);
-    await c.query('COMMIT');res.json({ok:true,gift:g.rows[0]});
-  }catch(e){await c.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Не удалось передать подарок'});}
+    row=g.rows[0];
+    const p=await c.query('SELECT equipped_gifts FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
+    if(p.rowCount){const eq=(p.rows[0].equipped_gifts||[]).filter(x=>Number(x)!==id);await c.query('UPDATE profiles SET equipped_gifts=$2::jsonb,updated_at=NOW() WHERE username=$1',[req.username,JSON.stringify(eq)]);}
+    room=[req.username,target].sort().join('|');
+    await c.query('INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3)',[room,req.username,giftTag(row)]);
+    await c.query('COMMIT');
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});console.error(e.message);return res.status(500).json({error:'Не удалось передать подарок'});}
   finally{c.release();}
+  pushNotify(room,req.username,'🎁 Подарок: '+giftName(row.gift_id));
+  res.json({ok:true,gift:giftRow(row)});
 });
+// Купить новый подарок из магазина и сразу подарить другому.
 app.post('/api/gifts/buy-for', auth, async (req,res) => {
-  const target=String(req.body?.target||'').toLowerCase(),gift=GIFT_CATALOG.find(g=>g.id===Number(req.body?.giftId));
+  const target=cleanNick(req.body?.target),gift=GIFT_CATALOG.find(g=>g.id===Number(req.body?.giftId));
   if(!gift)return res.status(400).json({error:'Такого подарка нет'});
-  if(!/^[a-z0-9_]{3,20}$/.test(target)||target===req.username||target==='pal_laich')return res.status(400).json({error:'Нельзя купить подарок этому пользователю'});
+  if(!NICK_RE.test(target)||target===req.username||target==='pal_laich')return res.status(400).json({error:'Нельзя купить подарок этому пользователю'});
   const c=await pool.connect();
+  let room,row,balance;
   try{
     await c.query('BEGIN');
     const exists=await c.query('SELECT 1 FROM users WHERE username=$1',[target]);
@@ -403,12 +426,58 @@ app.post('/api/gifts/buy-for', auth, async (req,res) => {
     const p=await c.query('SELECT balance FROM profiles WHERE username=$1 FOR UPDATE',[req.username]);
     if(!p.rowCount||Number(p.rows[0].balance)<gift.price){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц'});}
     await c.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,gift.price]);
-    const g=await c.query('INSERT INTO gift_inventory(username,gift_id) VALUES($1,$2) RETURNING id,gift_id,level,pattern,color',[target,gift.id]);
-    const room=[req.username,target].sort().join('|');
-    await c.query('INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3)',[room,req.username,'🎁 отправил(а) подарок: '+gift.name+' · '+gift.price+' золотых яиц']);
-    await c.query('COMMIT');res.status(201).json({ok:true,gift:g.rows[0],balance:Number(p.rows[0].balance)-gift.price});
-  }catch(e){await c.query('ROLLBACK');console.error(e.message);res.status(500).json({error:'Покупка подарка не удалась'});}
+    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[target]);
+    const look=rollLook();
+    const g=await c.query('INSERT INTO gift_inventory(username,gift_id,pattern,color) VALUES($1,$2,$3,$4) RETURNING '+GIFT_COLS,[target,gift.id,look.pattern,look.color]);
+    row=g.rows[0];balance=Number(p.rows[0].balance)-gift.price;
+    room=[req.username,target].sort().join('|');
+    await c.query('INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3)',[room,req.username,giftTag(row)]);
+    await c.query('COMMIT');
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});console.error(e.message);return res.status(500).json({error:'Покупка подарка не удалась'});}
   finally{c.release();}
+  pushNotify(room,req.username,'🎁 Подарок: '+gift.name);
+  res.status(201).json({ok:true,gift:giftRow(row),balance});
+});
+// Выставить свой подарок на продажу в профиле (price) или снять с продажи (price = null).
+app.post('/api/gifts/list', auth, async (req,res) => {
+  const id=Number(req.body?.inventoryId),raw=req.body?.price;
+  const price=raw==null||Number(raw)===0?null:Number(raw);
+  if(!Number.isSafeInteger(id)||(price!==null&&(!Number.isSafeInteger(price)||price<1||price>100000000)))
+    return res.status(400).json({error:'Цена: целое число от 1 до 100 000 000 золотых яиц'});
+  try{
+    const r=await pool.query('UPDATE gift_inventory SET listed_price=$3 WHERE id=$1 AND username=$2 RETURNING '+GIFT_COLS,[id,req.username,price]);
+    if(!r.rowCount)return res.status(404).json({error:'Подарок не найден'});
+    res.json({gift:giftRow(r.rows[0])});
+  }catch(e){console.error(e.message);res.status(500).json({error:'Не удалось изменить продажу'});}
+});
+// Купить подарок, выставленный другим пользователем. Цена сверяется, чтобы продавец не успел её поменять.
+app.post('/api/gifts/buy-listed', auth, async (req,res) => {
+  const id=Number(req.body?.inventoryId),seen=Number(req.body?.price);
+  if(!Number.isSafeInteger(id))return res.status(400).json({error:'Подарок не найден'});
+  const c=await pool.connect();
+  let room,row,price,balance;
+  try{
+    await c.query('BEGIN');
+    const g=await c.query('SELECT '+GIFT_COLS+',username FROM gift_inventory WHERE id=$1 FOR UPDATE',[id]);
+    if(!g.rowCount||g.rows[0].listed_price==null){await c.query('ROLLBACK');return res.status(404).json({error:'Этот подарок уже не продаётся'});}
+    const seller=g.rows[0].username;price=Number(g.rows[0].listed_price);
+    if(seller===req.username){await c.query('ROLLBACK');return res.status(400).json({error:'Это твой подарок'});}
+    if(seen!==price){await c.query('ROLLBACK');return res.status(409).json({error:'Цена изменилась, обнови профиль'});}
+    await c.query('INSERT INTO profiles(username) VALUES($1),($2) ON CONFLICT(username) DO NOTHING',[req.username,seller]);
+    const pr=await c.query('SELECT username,balance,equipped_gifts FROM profiles WHERE username=ANY($1) ORDER BY username FOR UPDATE',[[req.username,seller]]);
+    const buyer=pr.rows.find(x=>x.username===req.username),sp=pr.rows.find(x=>x.username===seller);
+    if(Number(buyer.balance)<price){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает золотых яиц'});}
+    await c.query('UPDATE profiles SET balance=balance-$2,updated_at=NOW() WHERE username=$1',[req.username,price]);
+    await c.query('UPDATE profiles SET balance=balance+$2,equipped_gifts=$3::jsonb,updated_at=NOW() WHERE username=$1',[seller,price,JSON.stringify((sp.equipped_gifts||[]).filter(x=>Number(x)!==id))]);
+    const u=await c.query('UPDATE gift_inventory SET username=$2,listed_price=NULL WHERE id=$1 RETURNING '+GIFT_COLS,[id,req.username]);
+    row=u.rows[0];balance=Number(buyer.balance)-price;
+    room=[req.username,seller].sort().join('|');
+    await c.query('INSERT INTO messages(room_key,sender,body) VALUES($1,$2,$3)',[room,req.username,'🛒 купил(а) твой подарок «'+giftName(row.gift_id)+'» за '+price+' золотых яиц']);
+    await c.query('COMMIT');
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});console.error('buy-listed:',e.message);return res.status(500).json({error:'Покупка не удалась'});}
+  finally{c.release();}
+  pushNotify(room,req.username,'🛒 Купил(а) твой подарок «'+giftName(row.gift_id)+'»');
+  res.json({ok:true,gift:giftRow(row),balance});
 });
 
 // ФабрMoney: результат и списание ставки рассчитываются на сервере.
@@ -416,17 +485,22 @@ require('./casino')(app, pool, auth); // слоты v2 + ежедневный б
 // Выдача золотых яиц доступна только аккаунту Alex.
 app.post('/api/stars/grant', auth, async (req,res) => {
   if(req.username.toLowerCase()!=='alex')return res.status(403).json({error:'Выдавать золотые яйца может только Alex'});
-  const target=String(req.body?.target||'').trim().replace(/^@/,'').toLowerCase(),amount=Number(req.body?.amount);
-  if(!/^[a-z0-9_]{3,20}$/.test(target)||!Number.isSafeInteger(amount)||amount<1||amount>1000000)return res.status(400).json({error:'Укажи ник и сумму от 1 до 1 000 000'});
+  const raw=cleanNick(req.body?.target),amount=Number(req.body?.amount),all=['all','*','все','всем'].includes(raw);
+  if(!(all||NICK_RE.test(raw))||!Number.isSafeInteger(amount)||amount<1||amount>1000000)return res.status(400).json({error:'Укажи ник (или all для всех) и сумму от 1 до 1 000 000'});
   const c=await pool.connect();
   try{
     await c.query('BEGIN');
-    const exists=await c.query('SELECT 1 FROM users WHERE username=$1',[target]);
+    if(all){
+      await c.query('INSERT INTO profiles(username) SELECT username FROM users ON CONFLICT(username) DO NOTHING');
+      const r=await c.query("UPDATE profiles SET balance=balance+$1,updated_at=NOW() WHERE username<>'pal_laich'",[amount]);
+      await c.query('COMMIT');return res.json({ok:true,target:'всем',amount,count:r.rowCount});
+    }
+    const exists=await c.query('SELECT 1 FROM users WHERE username=$1',[raw]);
     if(!exists.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Пользователь не найден'});}
-    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[target]);
-    const r=await c.query('UPDATE profiles SET balance=balance+$2,updated_at=NOW() WHERE username=$1 RETURNING balance',[target,amount]);
-    await c.query('COMMIT');res.json({ok:true,target,amount,balance:Number(r.rows[0].balance)});
-  }catch(e){await c.query('ROLLBACK');console.error('Stars grant:',e.message);res.status(500).json({error:'Не удалось выдать яйца'});}
+    await c.query('INSERT INTO profiles(username) VALUES($1) ON CONFLICT(username) DO NOTHING',[raw]);
+    const r=await c.query('UPDATE profiles SET balance=balance+$2,updated_at=NOW() WHERE username=$1 RETURNING balance',[raw,amount]);
+    await c.query('COMMIT');res.json({ok:true,target:raw,amount,balance:Number(r.rows[0].balance)});
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});console.error('Stars grant:',e.message);res.status(500).json({error:'Не удалось выдать яйца'});}
   finally{c.release();}
 });
 
