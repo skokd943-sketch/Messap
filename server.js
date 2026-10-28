@@ -19,7 +19,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 function sign(username) {
   const payload = Buffer.from(JSON.stringify({ username, exp: Date.now() + 30 * 86400000 })).toString('base64url');
@@ -462,7 +462,6 @@ app.put('/api/settings', auth, async (req,res) => {
 });
 
 require('./images')(app, pool, auth);
-require('./voice')(app, pool, auth);
 app.get('/', (_req, res) => res.send('ФабрLink API is running. Open /api/health to check the database connection.'));
 initDb().then(() => {
   app.listen(PORT, '0.0.0.0', () => console.log('ФабрLink API listening on port ' + PORT));
